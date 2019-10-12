@@ -14,7 +14,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-# test ifconfig address configuration for ethernet and point-to-point
+# test ifconfig address configuration for ethernet
 
 IFCONFIG ?=	${SUDO} ${KTRACE} /sbin/ifconfig
 
@@ -27,54 +27,54 @@ CLEANFILES =	ifconfig.out ktrace.out
 REGRESS_SETUP =		setup-ether
 setup-ether:
 	@echo '======== $@ ========'
-	${SUDO} ifconfig ${ETHER_IF} destroy 2>/dev/null || true
-	${SUDO} ifconfig ${ETHER_IF} create
+	${SUDO} /sbin/ifconfig ${ETHER_IF} destroy 2>/dev/null || true
+	${SUDO} /sbin/ifconfig ${ETHER_IF} create
 	
 REGRESS_CLEANUP =	cleanup-ether
 cleanup-ether:
 	@echo '======== $@ ========'
-	${SUDO} ifconfig ${ETHER_IF} destroy || true
+	${SUDO} /sbin/ifconfig ${ETHER_IF} destroy || true
 
 REGRESS_TARGETS +=	run-ether-addr
 run-ether-addr:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR}
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} ' ifconfig.out
 
 REGRESS_TARGETS +=	run-ether-inet
 run-ether-inet:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} inet ${ETHER_ADDR}
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} ' ifconfig.out
 
 REGRESS_TARGETS +=	run-ether-mask
 run-ether-mask:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.0
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
 
 REGRESS_TARGETS +=	run-ether-prefixlen
 run-ether-prefixlen:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR}/24
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
 
 REGRESS_TARGETS +=	run-ether-hexmask
 run-ether-hexmask:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR} netmask 0xffffff00
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
 
 REGRESS_TARGETS +=	run-ether-broadcast
 run-ether-broadcast:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR}/24
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} .* broadcast ${ETHER_NET}.255$$' ifconfig.out
 
 REGRESS_TARGETS +=	run-ether-replace
@@ -82,18 +82,45 @@ run-ether-replace:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	! grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-dup
+run-ether-dup:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
+	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
+
+REGRESS_TARGETS +=	run-ether-host
+run-ether-host:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/32
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff$$' ifconfig.out
+	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
 
 REGRESS_TARGETS +=	run-ether-alias
 run-ether-alias:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-alias-dup
+run-ether-alias-dup:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24 alias
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
+	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
 
 REGRESS_TARGETS +=	run-ether-replace-first
 run-ether-replace-first:
@@ -101,10 +128,56 @@ run-ether-replace-first:
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.3/24
-	ifconfig ${ETHER_IF} >ifconfig.out
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	! grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.3 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-alias-host
+run-ether-alias-host:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/32 alias
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff$$' ifconfig.out
+	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
+
+REGRESS_TARGETS +=	run-ether-change-mask
+run-ether-change-mask:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/32
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff$$' ifconfig.out
+	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
+	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-change-mask2
+run-ether-change-mask2:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/32
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
+	grep 'inet ${ETHER_NET}.2 netmask 0xffffffff$$' ifconfig.out
+	grep -c 'inet ${ETHER_NET}.2 ' ifconfig.out | grep 1
+
+# We add two addresses, replace one, and end up with only one.
+# This should be investigated.
+REGRESS_EXPECTED_FAILURES +=	run-ether-change-mask2
+
+REGRESS_TARGETS +=	run-ether-alias-mask
+run-ether-alias-mask:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/32 alias
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
+	grep 'inet ${ETHER_NET}.2 netmask 0xffffffff$$' ifconfig.out
+	grep -c 'inet ${ETHER_NET}.2 ' ifconfig.out | grep 1
 
 REGRESS_ROOT_TARGETS =	${REGRESS_TARGETS}
 
