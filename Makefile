@@ -26,6 +26,8 @@ PPP_ADDR ?=	10.188.253.74
 PPP_DEST ?=	10.188.253.75
 PPP_NET =	${PPP_ADDR:C/\.[0-9][0-9]*$//}
 
+PROGS =		ifioctl
+
 CLEANFILES =	ifconfig.out ktrace.out
 
 ### ether
