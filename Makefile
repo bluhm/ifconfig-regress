@@ -17,6 +17,7 @@
 # test ifconfig address configuration for ethernet and point-to-point
 
 IFCONFIG ?=	${SUDO} ${KTRACE} /sbin/ifconfig
+IFADDR =	${SUDO} ${KTRACE} ./ifaddr
 
 ETHER_IF ?=	vether99
 ETHER_ADDR ?=	10.188.254.74
@@ -26,7 +27,7 @@ PPP_ADDR ?=	10.188.253.74
 PPP_DEST ?=	10.188.253.75
 PPP_NET =	${PPP_ADDR:C/\.[0-9][0-9]*$//}
 
-PROGS =		ifaddr
+PROG =		ifaddr
 
 CLEANFILES =	ifconfig.out ktrace.out
 
@@ -230,6 +231,15 @@ run-ppp-alias:
 	/sbin/ifconfig ${PPP_IF} >ifconfig.out
 	grep 'inet ${PPP_NET}.1 --> ${PPP_DEST} ' ifconfig.out
 	grep 'inet ${PPP_NET}.2 --> ${PPP_DEST} ' ifconfig.out
+
+### ifaddr
+
+REGRESS_TARGETS +=	run-ether-ifaddr-set
+run-ether-ifaddr-set:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR}
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_ADDR} ' ifconfig.out
 
 ### setup cleanup
 

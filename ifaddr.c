@@ -232,18 +232,6 @@ const struct	cmd {
 	{ "-inet",	AF_INET,	0,		removeaf },
 	{ "-inet6",	AF_INET6,	0,		removeaf },
 	{ "ipdst",	NEXTARG,	0,		setifipdst },
-#else /* SMALL */
-	{ "powersave",	NEXTARG0,	0,		setignore },
-	{ "priority",	NEXTARG,	0,		setignore },
-	{ "rtlabel",	NEXTARG,	0,		setignore },
-	{ "nwflag",	NEXTARG,	0,		setignore },
-	{ "rdomain",	NEXTARG,	0,		setignore },
-	{ "-inet",	AF_INET,	0,		removeaf },
-	{ "-inet6",	AF_INET6,	0,		removeaf },
-	{ "description", NEXTARG,	0,		setignore },
-	{ "descr",	NEXTARG,	0,		setignore },
-	{ "wol",	IFXF_WOL,	0,		setignore },
-	{ "-wol",	-IFXF_WOL,	0,		setignore },
 #endif /* SMALL */
 	{ NULL, /*src*/	0,		0,		setifaddr },
 	{ NULL, /*dst*/	0,		0,		setifdstaddr },
