@@ -91,9 +91,6 @@
 #include <arpa/inet.h>
 #include <netinet/ip_ipsp.h>
 #include <netinet/if_ether.h>
-#include <net/pfvar.h>
-#include <net/if_trunk.h>
-#include <net/trunklacp.h>
 
 #include <netdb.h>
 
@@ -119,28 +116,6 @@
 	"\5VLAN_MTU\6VLAN_HWTAGGING\10CSUM_TCPv6"			\
 	"\11CSUM_UDPv6\20WOL"
 
-struct ifencap {
-	unsigned int	 ife_flags;
-#define IFE_VNETID_MASK		0xf
-#define IFE_VNETID_NOPE		0x0
-#define IFE_VNETID_NONE		0x1
-#define IFE_VNETID_ANY		0x2
-#define IFE_VNETID_SET		0x3
-	int64_t		 ife_vnetid;
-#define IFE_VNETFLOWID		0x10
-
-#define IFE_PARENT_MASK		0xf00
-#define IFE_PARENT_NOPE		0x000
-#define IFE_PARENT_NONE		0x100
-#define IFE_PARENT_SET		0x200
-	char		ife_parent[IFNAMSIZ];
-
-#define IFE_TXHPRIO_SET		0x1000
-	int		ife_txhprio;
-#define IFE_RXHPRIO_SET		0x2000
-	int		ife_rxhprio;
-};
-
 struct	ifreq		ifr, ridreq;
 struct	in_aliasreq	in_addreq;
 struct	in6_ifreq	ifr6;
@@ -165,17 +140,8 @@ int	newaddr = 0;
 int	af = AF_INET;
 int	explicit_prefix = 0;
 int	Lflag = 1;
-int	show_join = 0;
 
 int	showcapsflag;
-int	showclasses;
-
-struct	ifencap;
-
-const	char *lacpmodeactive = "active";
-const	char *lacpmodepassive = "passive";
-const	char *lacptimeoutfast = "fast";
-const	char *lacptimeoutslow = "slow";
 
 void	notealias(const char *, int);
 void	setifaddr(const char *, int);
@@ -197,21 +163,10 @@ void	setia6pltime(const char *, int);
 void	setia6vltime(const char *, int);
 void	setia6lifetime(const char *, const char *);
 void	setia6eui64(const char *, int);
-void	setkeepalive(const char *, const char *);
-void	unsetkeepalive(const char *, int);
 void	setrdomain(const char *, int);
 void	unsetrdomain(const char *, int);
 int	prefix(void *val, int);
-void	getifgroups(void);
-void	setifgroup(const char *, int);
-void	unsetifgroup(const char *, int);
 int	printgroup(char *, int);
-void	settrunkport(const char *, int);
-void	unsettrunkport(const char *, int);
-void	settrunkproto(const char *, int);
-void	settrunklacpmode(const char *, int);
-void	settrunklacptimeout(const char *, int);
-void	trunk_status(void);
 void	setifipdst(const char *, int);
 void	setignore(const char *, int);
 
@@ -254,11 +209,6 @@ const struct	cmd {
 	{ "netmask",	NEXTARG,	0,		setifnetmask },
 	{ "broadcast",	NEXTARG,	0,		setifbroadaddr },
 	{ "prefixlen",  NEXTARG,	0,		setifprefixlen},
-	{ "trunkport",	NEXTARG,	0,		settrunkport },
-	{ "-trunkport",	NEXTARG,	0,		unsettrunkport },
-	{ "trunkproto",	NEXTARG,	0,		settrunkproto },
-	{ "lacpmode",	NEXTARG,	0,		settrunklacpmode },
-	{ "lacptimeout", NEXTARG,	0,		settrunklacptimeout },
 	{ "anycast",	IN6_IFF_ANYCAST,	0,	setia6flags },
 	{ "-anycast",	-IN6_IFF_ANYCAST,	0,	setia6flags },
 	{ "tentative",	IN6_IFF_TENTATIVE,	0,	setia6flags },
@@ -281,8 +231,6 @@ const struct	cmd {
 	{ "tunnelttl",	NEXTARG,	0,		settunnelttl },
 	{ "-inet",	AF_INET,	0,		removeaf },
 	{ "-inet6",	AF_INET6,	0,		removeaf },
-	{ "keepalive",	NEXTARG2,	0,		NULL, setkeepalive },
-	{ "-keepalive",	1,		0,		unsetkeepalive },
 	{ "ipdst",	NEXTARG,	0,		setifipdst },
 #else /* SMALL */
 	{ "powersave",	NEXTARG0,	0,		setignore },
@@ -1208,20 +1156,6 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 #endif
 	printf("%cllprio %d\n", sep, llprio);
 
-#ifndef SMALL
-	(void) memset(&ikardesc, 0, sizeof(ikardesc));
-	(void) strlcpy(ikardesc.ikar_name, name, sizeof(ikardesc.ikar_name));
-	if (ioctl(s, SIOCGETKALIVE, &ikardesc) == 0 &&
-	    (ikardesc.ikar_timeo != 0 || ikardesc.ikar_cnt != 0))
-		printf("\tkeepalive: timeout %d count %d\n",
-		    ikardesc.ikar_timeo, ikardesc.ikar_cnt);
-	if (ioctl(s, SIOCGIFPAIR, &ifrdesc) == 0 && ifrdesc.ifr_index != 0 &&
-	    if_indextoname(ifrdesc.ifr_index, ifname) != NULL)
-		printf("\tpatch: %s\n", ifname);
-#endif
-	trunk_status();
-	getifgroups();
-
 	(void) memset(&ifmr, 0, sizeof(ifmr));
 	(void) strlcpy(ifmr.ifm_name, name, sizeof(ifmr.ifm_name));
 
@@ -1637,264 +1571,6 @@ settunnelttl(const char *id, int param)
 }
 
 void
-getvnetflowid(struct ifencap *ife)
-{
-	if (strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name)) >=
-	    sizeof(ifr.ifr_name))
-		errx(1, "vnetflowid: name is too long");
-
-	if (ioctl(s, SIOCGVNETFLOWID, &ifr) == -1)
-		return;
-
-	if (ifr.ifr_vnetid)
-		ife->ife_flags |= IFE_VNETFLOWID;
-}
-
-void
-settrunkport(const char *val, int d)
-{
-	struct trunk_reqport rp;
-
-	bzero(&rp, sizeof(rp));
-	strlcpy(rp.rp_ifname, name, sizeof(rp.rp_ifname));
-	strlcpy(rp.rp_portname, val, sizeof(rp.rp_portname));
-
-	if (ioctl(s, SIOCSTRUNKPORT, &rp) == -1)
-		err(1, "SIOCSTRUNKPORT");
-}
-
-void
-unsettrunkport(const char *val, int d)
-{
-	struct trunk_reqport rp;
-
-	bzero(&rp, sizeof(rp));
-	strlcpy(rp.rp_ifname, name, sizeof(rp.rp_ifname));
-	strlcpy(rp.rp_portname, val, sizeof(rp.rp_portname));
-
-	if (ioctl(s, SIOCSTRUNKDELPORT, &rp) == -1)
-		err(1, "SIOCSTRUNKDELPORT");
-}
-
-void
-settrunkproto(const char *val, int d)
-{
-	struct trunk_protos tpr[] = TRUNK_PROTOS;
-	struct trunk_reqall ra;
-	int i;
-
-	bzero(&ra, sizeof(ra));
-	ra.ra_proto = TRUNK_PROTO_MAX;
-
-	for (i = 0; i < (sizeof(tpr) / sizeof(tpr[0])); i++) {
-		if (strcmp(val, tpr[i].tpr_name) == 0) {
-			ra.ra_proto = tpr[i].tpr_proto;
-			break;
-		}
-	}
-	if (ra.ra_proto == TRUNK_PROTO_MAX)
-		errx(1, "Invalid trunk protocol: %s", val);
-
-	strlcpy(ra.ra_ifname, name, sizeof(ra.ra_ifname));
-	if (ioctl(s, SIOCSTRUNK, &ra) != 0)
-		err(1, "SIOCSTRUNK");
-}
-
-void
-settrunklacpmode(const char *val, int d)
-{
-	struct trunk_reqall ra;
-	struct trunk_opts tops;
-
-	bzero(&ra, sizeof(ra));
-	strlcpy(ra.ra_ifname, name, sizeof(ra.ra_ifname));
-
-	if (ioctl(s, SIOCGTRUNK, &ra) != 0)
-		err(1, "SIOCGTRUNK");
-
-	if (ra.ra_proto != TRUNK_PROTO_LACP)
-		errx(1, "Invalid option for trunk: %s", name);
-
-	if (strcmp(val, lacpmodeactive) != 0 &&
-	    strcmp(val, lacpmodepassive) != 0)
-		errx(1, "Invalid lacpmode option for trunk: %s", name);
-
-	bzero(&tops, sizeof(tops));
-	strlcpy(tops.to_ifname, name, sizeof(tops.to_ifname));
-	tops.to_proto = TRUNK_PROTO_LACP;
-	tops.to_opts |= TRUNK_OPT_LACP_MODE;
-
-	if (strcmp(val, lacpmodeactive) == 0)
-		tops.to_lacpopts.lacp_mode = 1;
-	else
-		tops.to_lacpopts.lacp_mode = 0;
-
-	if (ioctl(s, SIOCSTRUNKOPTS, &tops) != 0)
-		err(1, "SIOCSTRUNKOPTS");
-}
-
-void
-settrunklacptimeout(const char *val, int d)
-{
-	struct trunk_reqall ra;
-	struct trunk_opts tops;
-
-	bzero(&ra, sizeof(ra));
-	strlcpy(ra.ra_ifname, name, sizeof(ra.ra_ifname));
-
-	if (ioctl(s, SIOCGTRUNK, &ra) != 0)
-		err(1, "SIOCGTRUNK");
-
-	if (ra.ra_proto != TRUNK_PROTO_LACP)
-		errx(1, "Invalid option for trunk: %s", name);
-
-	if (strcmp(val, lacptimeoutfast) != 0 &&
-	    strcmp(val, lacptimeoutslow) != 0)
-		errx(1, "Invalid lacptimeout option for trunk: %s", name);
-
-	bzero(&tops, sizeof(tops));
-	strlcpy(tops.to_ifname, name, sizeof(tops.to_ifname));
-	tops.to_proto = TRUNK_PROTO_LACP;
-	tops.to_opts |= TRUNK_OPT_LACP_TIMEOUT;
-
-	if (strcmp(val, lacptimeoutfast) == 0)
-		tops.to_lacpopts.lacp_timeout = 1;
-	else
-		tops.to_lacpopts.lacp_timeout = 0;
-
-	if (ioctl(s, SIOCSTRUNKOPTS, &tops) != 0)
-		err(1, "SIOCSTRUNKOPTS");
-}
-
-void
-trunk_status(void)
-{
-	struct trunk_protos tpr[] = TRUNK_PROTOS;
-	struct trunk_reqport rp, rpbuf[TRUNK_MAX_PORTS];
-	struct trunk_reqall ra;
-	struct lacp_opreq *lp;
-	const char *proto = "<unknown>";
-	int i, isport = 0;
-
-	bzero(&rp, sizeof(rp));
-	bzero(&ra, sizeof(ra));
-
-	strlcpy(rp.rp_ifname, name, sizeof(rp.rp_ifname));
-	strlcpy(rp.rp_portname, name, sizeof(rp.rp_portname));
-
-	if (ioctl(s, SIOCGTRUNKPORT, &rp) == 0)
-		isport = 1;
-
-	strlcpy(ra.ra_ifname, name, sizeof(ra.ra_ifname));
-	ra.ra_size = sizeof(rpbuf);
-	ra.ra_port = rpbuf;
-
-	if (ioctl(s, SIOCGTRUNK, &ra) == 0) {
-		lp = (struct lacp_opreq *)&ra.ra_lacpreq;
-
-		for (i = 0; i < (sizeof(tpr) / sizeof(tpr[0])); i++) {
-			if (ra.ra_proto == tpr[i].tpr_proto) {
-				proto = tpr[i].tpr_name;
-				break;
-			}
-		}
-
-		printf("\ttrunk: trunkproto %s", proto);
-		if (isport)
-			printf(" trunkdev %s", rp.rp_ifname);
-		putchar('\n');
-		if (ra.ra_proto == TRUNK_PROTO_LACP) {
-			char *act_mac = strdup(
-			    ether_ntoa((struct ether_addr*)lp->actor_mac));
-			if (act_mac == NULL)
-				err(1, "strdup");
-			printf("\ttrunk id: [(%04X,%s,%04X,%04X,%04X),\n"
-			    "\t\t (%04X,%s,%04X,%04X,%04X)]\n",
-			    lp->actor_prio, act_mac,
-			    lp->actor_key, lp->actor_portprio, lp->actor_portno,
-			    lp->partner_prio,
-			    ether_ntoa((struct ether_addr*)lp->partner_mac),
-			    lp->partner_key, lp->partner_portprio,
-			    lp->partner_portno);
-			free(act_mac);
-		}
-
-		for (i = 0; i < ra.ra_ports; i++) {
-			lp = (struct lacp_opreq *)&(rpbuf[i].rp_lacpreq);
-			if (ra.ra_proto == TRUNK_PROTO_LACP) {
-				printf("\t\t%s lacp actor "
-				    "system pri 0x%x mac %s, key 0x%x, "
-				    "port pri 0x%x number 0x%x\n",
-				    rpbuf[i].rp_portname,
-				    lp->actor_prio,
-				    ether_ntoa((struct ether_addr*)
-				     lp->actor_mac),
-				    lp->actor_key,
-				    lp->actor_portprio, lp->actor_portno);
-				printf("\t\t%s lacp actor state ",
-				    rpbuf[i].rp_portname);
-				printb_status(lp->actor_state,
-				    LACP_STATE_BITS);
-				putchar('\n');
-
-				printf("\t\t%s lacp partner "
-				    "system pri 0x%x mac %s, key 0x%x, "
-				    "port pri 0x%x number 0x%x\n",
-				    rpbuf[i].rp_portname,
-				    lp->partner_prio,
-				    ether_ntoa((struct ether_addr*)
-				     lp->partner_mac),
-				    lp->partner_key,
-				    lp->partner_portprio, lp->partner_portno);
-				printf("\t\t%s lacp partner state ",
-				    rpbuf[i].rp_portname);
-				printb_status(lp->partner_state,
-				    LACP_STATE_BITS);
-				putchar('\n');
-			}
-
-			printf("\t\t%s port ", rpbuf[i].rp_portname);
-			printb_status(rpbuf[i].rp_flags, TRUNK_PORT_BITS);
-			putchar('\n');
-		}
-
-	} else if (isport)
-		printf("\ttrunk: trunkdev %s\n", rp.rp_ifname);
-}
-
-void
-setkeepalive(const char *timeout, const char *count)
-{
-	const char *errmsg = NULL;
-	struct ifkalivereq ikar;
-	int t, c;
-
-	t = strtonum(timeout, 1, 3600, &errmsg);
-	if (errmsg)
-		errx(1, "keepalive period %s: %s", timeout, errmsg);
-	c = strtonum(count, 2, 600, &errmsg);
-	if (errmsg)
-		errx(1, "keepalive count %s: %s", count, errmsg);
-
-	strlcpy(ikar.ikar_name, name, sizeof(ikar.ikar_name));
-	ikar.ikar_timeo = t;
-	ikar.ikar_cnt = c;
-	if (ioctl(s, SIOCSETKALIVE, (caddr_t)&ikar) == -1)
-		warn("SIOCSETKALIVE");
-}
-
-void
-unsetkeepalive(const char *val, int d)
-{
-	struct ifkalivereq ikar;
-
-	bzero(&ikar, sizeof(ikar));
-	strlcpy(ikar.ikar_name, name, sizeof(ikar.ikar_name));
-	if (ioctl(s, SIOCSETKALIVE, (caddr_t)&ikar) == -1)
-		warn("SIOCSETKALIVE");
-}
-
-void
 utf16_to_char(uint16_t *in, int inlen, char *out, size_t outlen)
 {
 	uint16_t c;
@@ -2163,48 +1839,6 @@ usage(void)
 	    "[address [dest_address]]\n"
 	    "\t\t[parameters]\n");
 	exit(1);
-}
-
-void
-getifgroups(void)
-{
-	int			 len, cnt;
-	struct ifgroupreq	 ifgr;
-	struct ifg_req		*ifg;
-
-	memset(&ifgr, 0, sizeof(ifgr));
-	strlcpy(ifgr.ifgr_name, name, IFNAMSIZ);
-
-	if (ioctl(s, SIOCGIFGROUP, (caddr_t)&ifgr) == -1) {
-		if (errno == EINVAL || errno == ENOTTY)
-			return;
-		else
-			err(1, "SIOCGIFGROUP");
-	}
-
-	len = ifgr.ifgr_len;
-	ifgr.ifgr_groups = calloc(len / sizeof(struct ifg_req),
-	    sizeof(struct ifg_req));
-	if (ifgr.ifgr_groups == NULL)
-		err(1, "getifgroups");
-	if (ioctl(s, SIOCGIFGROUP, (caddr_t)&ifgr) == -1)
-		err(1, "SIOCGIFGROUP");
-
-	cnt = 0;
-	ifg = ifgr.ifgr_groups;
-	for (; ifg && len >= sizeof(struct ifg_req); ifg++) {
-		len -= sizeof(struct ifg_req);
-		if (strcmp(ifg->ifgrq_group, "all")) {
-			if (cnt == 0)
-				printf("\tgroups:");
-			cnt++;
-			printf(" %s", ifg->ifgrq_group);
-		}
-	}
-	if (cnt)
-		printf("\n");
-
-	free(ifgr.ifgr_groups);
 }
 
 #ifndef SMALL
