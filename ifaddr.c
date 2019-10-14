@@ -1835,7 +1835,7 @@ __dead void
 usage(void)
 {
 	fprintf(stderr,
-	    "usage: ifioctl interface [address_family] "
+	    "usage: ifaddr interface [address_family] "
 	    "[address [dest_address]]\n"
 	    "\t\t[parameters]\n");
 	exit(1);
