@@ -14,26 +14,21 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-# test ifconfig address configuration for ethernet
+# test ifconfig address configuration for ethernet and point-to-point
 
 IFCONFIG ?=	${SUDO} ${KTRACE} /sbin/ifconfig
 
 ETHER_IF ?=	vether99
 ETHER_ADDR ?=	10.188.254.74
 ETHER_NET =	${ETHER_ADDR:C/\.[0-9][0-9]*$//}
+PPP_IF ?=	ppp99
+PPP_ADDR ?=	10.188.253.74
+PPP_DEST ?=	10.188.253.75
+PPP_NET =	${PPP_ADDR:C/\.[0-9][0-9]*$//}
 
 CLEANFILES =	ifconfig.out ktrace.out
 
-REGRESS_SETUP =		setup-ether
-setup-ether:
-	@echo '======== $@ ========'
-	${SUDO} /sbin/ifconfig ${ETHER_IF} destroy 2>/dev/null || true
-	${SUDO} /sbin/ifconfig ${ETHER_IF} create
-	
-REGRESS_CLEANUP =	cleanup-ether
-cleanup-ether:
-	@echo '======== $@ ========'
-	${SUDO} /sbin/ifconfig ${ETHER_IF} destroy || true
+### ether
 
 REGRESS_TARGETS +=	run-ether-addr
 run-ether-addr:
@@ -179,7 +174,84 @@ run-ether-alias-mask:
 	grep 'inet ${ETHER_NET}.2 netmask 0xffffffff$$' ifconfig.out
 	grep -c 'inet ${ETHER_NET}.2 ' ifconfig.out | grep 1
 
+### ppp
+
+REGRESS_TARGETS +=	run-ppp-addr
+run-ppp-addr:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} ${PPP_ADDR}
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_ADDR} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-inet
+run-ppp-inet:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} inet ${PPP_ADDR}
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_ADDR} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-mask
+run-ppp-mask:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} ${PPP_ADDR} netmask 255.255.255.0
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_ADDR} .* netmask 0xffffff00$$' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-prefixlen
+run-ppp-prefixlen:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} ${PPP_ADDR}/24
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_ADDR} .* netmask 0xffffff00$$' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-destination
+run-ppp-destination:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} ${PPP_ADDR}/24 ${PPP_DEST}
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_ADDR} --> ${PPP_DEST} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-replace
+run-ppp-replace:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} ${PPP_NET}.1/24 ${PPP_DEST}
+	${IFCONFIG} ${PPP_IF} ${PPP_NET}.2/24 ${PPP_DEST}
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_NET}.2 --> ${PPP_DEST} ' ifconfig.out
+	! grep 'inet ${PPP_NET}.1 --> ${PPP_DEST} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-alias
+run-ppp-alias:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} ${PPP_NET}.1/24 ${PPP_DEST}
+	${IFCONFIG} ${PPP_IF} ${PPP_NET}.2/24 ${PPP_DEST} alias
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_NET}.1 --> ${PPP_DEST} ' ifconfig.out
+	grep 'inet ${PPP_NET}.2 --> ${PPP_DEST} ' ifconfig.out
+
+### setup cleanup
+
 REGRESS_ROOT_TARGETS =	${REGRESS_TARGETS}
+
+${REGRESS_TARGETS:Mrun-ether-*}: setup-ether
+setup-ether:
+	@echo '======== $@ ========'
+	${SUDO} /sbin/ifconfig ${ETHER_IF} destroy 2>/dev/null || true
+	${SUDO} /sbin/ifconfig ${ETHER_IF} create
+
+${REGRESS_TARGETS:Mrun-ppp-*}: setup-ppp
+setup-ppp:
+	@echo '======== $@ ========'
+	${SUDO} /sbin/ifconfig ${PPP_IF} destroy 2>/dev/null || true
+	${SUDO} /sbin/ifconfig ${PPP_IF} create
+
+REGRESS_CLEANUP =	cleanup
+cleanup:
+	@echo '======== $@ ========'
+	${SUDO} /sbin/ifconfig ${ETHER_IF} destroy || true
+	${SUDO} /sbin/ifconfig ${PPP_IF} destroy || true
+
+### check
 
 check-targets:
 	# REGRESS_TARGETS must not contain duplicates, prevent copy paste error
