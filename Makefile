@@ -241,9 +241,27 @@ run-ether-ifaddr-set:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} ' ifconfig.out
 
+REGRESS_TARGETS +=	run-ether-ifaddr-mask
+run-ether-ifaddr-mask:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.0
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-ifaddr-alias
+run-ether-ifaddr-alias:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24 alias
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
+	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
+
 ### setup cleanup
 
 REGRESS_ROOT_TARGETS =	${REGRESS_TARGETS}
+
+${REGRESS_TARGETS:Mrun-*-ifaddr-*}: ifaddr
 
 ${REGRESS_TARGETS:Mrun-ether-*}: setup-ether
 setup-ether:
@@ -264,6 +282,8 @@ cleanup:
 	${SUDO} /sbin/ifconfig ${PPP_IF} destroy || true
 
 ### check
+
+check: check-targets
 
 check-targets:
 	# REGRESS_TARGETS must not contain duplicates, prevent copy paste error

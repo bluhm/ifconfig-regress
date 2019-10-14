@@ -116,22 +116,14 @@
 	"\5VLAN_MTU\6VLAN_HWTAGGING\10CSUM_TCPv6"			\
 	"\11CSUM_UDPv6\20WOL"
 
-struct	ifreq		ifr, ridreq;
-struct	in_aliasreq	in_addreq;
-struct	in6_ifreq	ifr6;
-struct	in6_ifreq	in6_ridreq;
-struct	in6_aliasreq	in6_addreq;
+struct	ifreq		ifr, ifreq;
+struct	in_aliasreq	in_aliasreq;
+struct	in6_ifreq	ifr6, in6_ifreq;
+struct	in6_aliasreq	in6_aliasreq;
 struct	sockaddr_in	netmask;
 
-#ifndef SMALL
-struct	ifaliasreq	addreq;
-
-int	wconfig = 0;
-int	wcwconfig = 0;
-#endif /* SMALL */
-
 char	name[IFNAMSIZ];
-int	flags, xflags, setaddr, setipdst, doalias;
+int	flags, xflags, setaddr, setmask, setipdst, setbroad, doalias;
 u_long	metric, mtu;
 int	rdomainid;
 int	llprio;
@@ -170,26 +162,8 @@ int	printgroup(char *, int);
 void	setifipdst(const char *, int);
 void	setignore(const char *, int);
 
-/*
- * Media stuff.  Whenever a media command is first performed, the
- * currently select media is grabbed for this interface.  If `media'
- * is given, the current media word is modified.  `mediaopt' commands
- * only modify the set and clear words.  They then operate on the
- * current media word later.
- */
-uint64_t	media_current;
-uint64_t	mediaopt_set;
-uint64_t	mediaopt_clear;
-
 int	actions;			/* Actions performed */
 
-#define	A_MEDIA		0x0001		/* media command */
-#define	A_MEDIAOPTSET	0x0002		/* mediaopt command */
-#define	A_MEDIAOPTCLR	0x0004		/* -mediaopt command */
-#define	A_MEDIAOPT	(A_MEDIAOPTSET|A_MEDIAOPTCLR)
-#define	A_MEDIAINST	0x0008		/* instance or inst command */
-#define	A_MEDIAMODE	0x0010		/* mode command */
-#define	A_JOIN		0x0020		/* join */
 #define A_SILENT	0x8000000	/* doing operation, do not print */
 
 #define	NEXTARG0	0xffffff
@@ -276,17 +250,18 @@ const struct afswtch {
 	void (*af_status)(int);
 	void (*af_getaddr)(const char *, int);
 	void (*af_getprefix)(const char *, int);
+	u_long af_sifaddr;
 	u_long af_difaddr;
 	u_long af_aifaddr;
-	caddr_t af_ridreq;
-	caddr_t af_addreq;
+	caddr_t af_ifreq;
+	caddr_t af_aliasreq;
 } afs[] = {
 #define C(x) ((caddr_t) &x)
 	{ "inet", AF_INET, in_status, in_getaddr, in_getprefix,
-	    SIOCDIFADDR, SIOCAIFADDR, C(ridreq), C(in_addreq) },
+	  SIOCSIFADDR, SIOCDIFADDR, SIOCAIFADDR, C(ifreq), C(in_aliasreq) },
 	{ "inet6", AF_INET6, in6_status, in6_getaddr, in6_getprefix,
-	    SIOCDIFADDR_IN6, SIOCAIFADDR_IN6, C(in6_ridreq), C(in6_addreq) },
-	{ 0,	0,	    0,		0 }
+	  0, SIOCDIFADDR_IN6, SIOCAIFADDR_IN6, C(in6_ifreq), C(in6_aliasreq) },
+	{ 0 }
 };
 
 const struct afswtch *afp;	/*the address family being set or asked about*/
@@ -367,8 +342,8 @@ main(int argc, char *argv[])
 	(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 
 	/* initialization */
-	in6_addreq.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
-	in6_addreq.ifra_lifetime.ia6t_vltime = ND6_INFINITE_LIFETIME;
+	in6_aliasreq.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
+	in6_aliasreq.ifra_lifetime.ia6t_vltime = ND6_INFINITE_LIFETIME;
 
 	if (aflag == 0) {
 		create = (argc > 0) && strcmp(argv[0], "destroy") != 0;
@@ -453,24 +428,21 @@ nextarg:
 		/* in6_getprefix("64", MASK) if MASK is available here... */
 	}
 
-	if (clearaddr && newaddr && rafp->af_af == AF_INET) {
-		memcpy(rqtosa(af_ridreq), rqtosa(af_addreq),
-		    rqtosa(af_addreq)->sa_len);
-		(void) strlcpy(rafp->af_ridreq, name, sizeof(ifr.ifr_name));
-printf("af_ridreq %p, ridreq %p\n", rafp->af_ridreq, &ridreq);
-printf("len %d, af %d\n", ridreq.ifr_addr.sa_len, ridreq.ifr_addr.sa_family);
-printf("saddr %d\n", ((struct sockaddr_in *)&ridreq.ifr_addr)->sin_addr.s_addr);
-		if (ioctl(s, SIOCSIFADDR, rafp->af_ridreq) == -1) {
+	if (newaddr && clearaddr) {
+		memcpy(rqtosa(af_ifreq), rqtosa(af_aliasreq),
+		    rqtosa(af_aliasreq)->sa_len);
+		(void) strlcpy(rafp->af_ifreq, name, sizeof(ifr.ifr_name));
+printf("af_ifreq %p, ifreq %p\n", rafp->af_ifreq, &ifreq);
+printf("len %d, af %d\n", ifreq.ifr_addr.sa_len, ifreq.ifr_addr.sa_family);
+printf("saddr %d\n", ((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr.s_addr);
+		if (ioctl(s, rafp->af_sifaddr, rafp->af_ifreq) == -1) {
 			err(1, "SIOCSIFADDR");
 		}
-		clearaddr = newaddr = 0;
+		return (0);
 	}
 	if (clearaddr) {
-		(void) strlcpy(rafp->af_ridreq, name, sizeof(ifr.ifr_name));
-printf("af_ridreq %p, ridreq %p\n", rafp->af_ridreq, &ridreq);
-printf("len %d, af %d\n", ridreq.ifr_addr.sa_len, ridreq.ifr_addr.sa_family);
-printf("saddr %d\n", ((struct sockaddr_in *)&ridreq.ifr_addr)->sin_addr.s_addr);
-		if (ioctl(s, rafp->af_difaddr, rafp->af_ridreq) == -1) {
+		(void) strlcpy(rafp->af_ifreq, name, sizeof(ifr.ifr_name));
+		if (ioctl(s, rafp->af_difaddr, rafp->af_ifreq) == -1) {
 			if (errno == EADDRNOTAVAIL && (doalias >= 0)) {
 				/* means no previous address for interface */
 			} else
@@ -478,8 +450,8 @@ printf("saddr %d\n", ((struct sockaddr_in *)&ridreq.ifr_addr)->sin_addr.s_addr);
 		}
 	}
 	if (newaddr) {
-		(void) strlcpy(rafp->af_addreq, name, sizeof(ifr.ifr_name));
-		if (ioctl(s, rafp->af_aifaddr, rafp->af_addreq) == -1)
+		(void) strlcpy(rafp->af_aliasreq, name, sizeof(ifr.ifr_name));
+		if (ioctl(s, rafp->af_aifaddr, rafp->af_aliasreq) == -1)
 			err(1, "SIOCAIFADDR");
 	}
 	return (0);
@@ -682,7 +654,7 @@ printif(char *ifname, int ifaliases)
 	}
 }
 
-#define RIDADDR 0
+#define RADDR	0
 #define ADDR	1
 #define MASK	2
 #define DSTADDR	3
@@ -701,7 +673,7 @@ setifaddr(const char *addr, int param)
 		newaddr = 1;
 	if (doalias == 0)
 		clearaddr = 1;
-	afp->af_getaddr(addr, (doalias >= 0 ? ADDR : RIDADDR));
+	afp->af_getaddr(addr, (doalias >= 0 ? ADDR : RADDR));
 }
 
 #ifndef SMALL
@@ -721,6 +693,7 @@ setifrtlabel(const char *label, int d)
 void
 setifnetmask(const char *addr, int ignored)
 {
+	setmask++;
 	afp->af_getaddr(addr, MASK);
 }
 
@@ -728,7 +701,7 @@ setifnetmask(const char *addr, int ignored)
 void
 setifbroadaddr(const char *addr, int ignored)
 {
-printf("DSTADDR %s\n", addr);
+	setbroad++;
 	afp->af_getaddr(addr, DSTADDR);
 }
 
@@ -747,8 +720,8 @@ void
 notealias(const char *addr, int param)
 {
 	if (setaddr && doalias == 0 && param < 0)
-		memcpy(rqtosa(af_ridreq), rqtosa(af_addreq),
-		    rqtosa(af_addreq)->sa_len);
+		memcpy(rqtosa(af_ifreq), rqtosa(af_aliasreq),
+		    rqtosa(af_aliasreq)->sa_len);
 	doalias = param;
 	if (param < 0) {
 		clearaddr = 1;
@@ -794,9 +767,9 @@ setia6flags(const char *vname, int value)
 
 	if (value < 0) {
 		value = -value;
-		in6_addreq.ifra_flags &= ~value;
+		in6_aliasreq.ifra_flags &= ~value;
 	} else
-		in6_addreq.ifra_flags |= value;
+		in6_aliasreq.ifra_flags |= value;
 }
 
 void
@@ -828,11 +801,11 @@ setia6lifetime(const char *cmd, const char *val)
 	if (afp->af_af != AF_INET6)
 		errx(1, "%s not allowed for this address family", cmd);
 	if (strcmp(cmd, "vltime") == 0) {
-		in6_addreq.ifra_lifetime.ia6t_expire = t + newval;
-		in6_addreq.ifra_lifetime.ia6t_vltime = newval;
+		in6_aliasreq.ifra_lifetime.ia6t_expire = t + newval;
+		in6_aliasreq.ifra_lifetime.ia6t_vltime = newval;
 	} else if (strcmp(cmd, "pltime") == 0) {
-		in6_addreq.ifra_lifetime.ia6t_preferred = t + newval;
-		in6_addreq.ifra_lifetime.ia6t_pltime = newval;
+		in6_aliasreq.ifra_lifetime.ia6t_preferred = t + newval;
+		in6_aliasreq.ifra_lifetime.ia6t_pltime = newval;
 	}
 }
 
@@ -849,7 +822,7 @@ setia6eui64(const char *cmd, int val)
 
 	addaf(name, AF_INET6);
 
-	in6 = (struct in6_addr *)&in6_addreq.ifra_addr.sin6_addr;
+	in6 = (struct in6_addr *)&in6_aliasreq.ifra_addr.sin6_addr;
 	if (memcmp(&in6addr_any.s6_addr[8], &in6->s6_addr[8], 8) != 0)
 		errx(1, "interface index is already filled");
 	if (getifaddrs(&ifap) != 0)
@@ -1606,8 +1579,11 @@ char_to_utf16(const char *in, uint16_t *out, size_t outlen)
 
 #define SIN(x) ((struct sockaddr_in *) &(x))
 struct sockaddr_in *sintab[] = {
-SIN(ridreq.ifr_addr), SIN(in_addreq.ifra_addr),
-SIN(in_addreq.ifra_mask), SIN(in_addreq.ifra_broadaddr)};
+	SIN(ifreq.ifr_addr),
+	SIN(in_aliasreq.ifra_addr),
+	SIN(in_aliasreq.ifra_mask),
+	SIN(in_aliasreq.ifra_broadaddr)
+};
 
 void
 in_getaddr(const char *s, int which)
@@ -1727,8 +1703,11 @@ printb_status(unsigned short v, unsigned char *bits)
 
 #define SIN6(x) ((struct sockaddr_in6 *) &(x))
 struct sockaddr_in6 *sin6tab[] = {
-SIN6(in6_ridreq.ifr_addr), SIN6(in6_addreq.ifra_addr),
-SIN6(in6_addreq.ifra_prefixmask), SIN6(in6_addreq.ifra_dstaddr)};
+	SIN6(in6_ifreq.ifr_addr),
+	SIN6(in6_aliasreq.ifra_addr),
+	SIN6(in6_aliasreq.ifra_prefixmask),
+	SIN6(in6_aliasreq.ifra_dstaddr)
+};
 
 void
 in6_getaddr(const char *s, int which)
