@@ -250,7 +250,6 @@ const struct afswtch {
 	void (*af_status)(int);
 	void (*af_getaddr)(const char *, int);
 	void (*af_getprefix)(const char *, int);
-	u_long af_sifaddr;
 	u_long af_difaddr;
 	u_long af_aifaddr;
 	caddr_t af_ifreq;
@@ -258,9 +257,9 @@ const struct afswtch {
 } afs[] = {
 #define C(x) ((caddr_t) &x)
 	{ "inet", AF_INET, in_status, in_getaddr, in_getprefix,
-	  SIOCSIFADDR, SIOCDIFADDR, SIOCAIFADDR, C(ifreq), C(in_aliasreq) },
+	    SIOCDIFADDR, SIOCAIFADDR, C(ifreq), C(in_aliasreq) },
 	{ "inet6", AF_INET6, in6_status, in6_getaddr, in6_getprefix,
-	  0, SIOCDIFADDR_IN6, SIOCAIFADDR_IN6, C(in6_ifreq), C(in6_aliasreq) },
+	    SIOCDIFADDR_IN6, SIOCAIFADDR_IN6, C(in6_ifreq), C(in6_aliasreq) },
 	{ 0 }
 };
 
@@ -269,7 +268,6 @@ const struct afswtch *afp;	/*the address family being set or asked about*/
 int ifaliases = 0;
 int aflag = 0;
 
-#define rqtosa(x) (&(((struct ifreq *)(afp->x))->ifr_addr))
 int
 main(int argc, char *argv[])
 {
@@ -429,14 +427,29 @@ nextarg:
 	}
 
 	if (newaddr && clearaddr) {
-		memcpy(rqtosa(af_ifreq), rqtosa(af_aliasreq),
-		    rqtosa(af_aliasreq)->sa_len);
 		(void) strlcpy(rafp->af_ifreq, name, sizeof(ifr.ifr_name));
-printf("af_ifreq %p, ifreq %p\n", rafp->af_ifreq, &ifreq);
-printf("len %d, af %d\n", ifreq.ifr_addr.sa_len, ifreq.ifr_addr.sa_family);
-printf("saddr %d\n", ((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr.s_addr);
-		if (ioctl(s, rafp->af_sifaddr, rafp->af_ifreq) == -1) {
+		/* IPv4 only, inet6 does not have such ioctls */
+		memcpy(&ifreq.ifr_addr, &in_aliasreq.ifra_addr,
+		    in_aliasreq.ifra_addr.sin_len);
+		if (ioctl(s, SIOCSIFADDR, rafp->af_ifreq) == -1)
 			err(1, "SIOCSIFADDR");
+		if (setmask) {
+			memcpy(&ifreq.ifr_addr, &in_aliasreq.ifra_mask,
+			    in_aliasreq.ifra_mask.sin_len);
+			if (ioctl(s, SIOCSIFNETMASK, rafp->af_ifreq) == -1)
+				err(1, "SIOCSIFNETMASK");
+		}
+		if (setipdst) {
+			memcpy(&ifreq.ifr_addr, &in_aliasreq.ifra_dstaddr,
+			    in_aliasreq.ifra_dstaddr.sin_len);
+			if (ioctl(s, SIOCSIFDSTADDR, rafp->af_ifreq) == -1)
+				err(1, "SIOCSIFDSTADDR");
+		}
+		if (setbroad) {
+			memcpy(&ifreq.ifr_addr, &in_aliasreq.ifra_broadaddr,
+			    in_aliasreq.ifra_broadaddr.sin_len);
+			if (ioctl(s, SIOCSIFBRDADDR, rafp->af_ifreq) == -1)
+				err(1, "SIOCSIFBRDADDR");
 		}
 		return (0);
 	}
@@ -715,6 +728,7 @@ setifipdst(const char *addr, int ignored)
 	newaddr = 0;
 }
 
+#define rqtosa(x) (&(((struct ifreq *)(afp->x))->ifr_addr))
 /*ARGSUSED*/
 void
 notealias(const char *addr, int param)
@@ -1074,12 +1088,9 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 	struct ifmediareq ifmr;
 #ifndef SMALL
 	struct ifreq ifrdesc;
-	struct ifkalivereq ikardesc;
 	char ifdescr[IFDESCRSIZE];
-	char ifname[IF_NAMESIZE];
 #endif
 	uint64_t *media_list;
-	int i;
 	char sep;
 
 
