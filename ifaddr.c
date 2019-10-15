@@ -116,10 +116,11 @@
 	"\5VLAN_MTU\6VLAN_HWTAGGING\10CSUM_TCPv6"			\
 	"\11CSUM_UDPv6\20WOL"
 
-struct	ifreq		ifr, ifreq;
-struct	in_aliasreq	in_aliasreq;
-struct	in6_ifreq	ifr6, in6_ifreq;
-struct	in6_aliasreq	in6_aliasreq;
+struct	ifreq		ifr, ridreq;
+struct	in_aliasreq	in_addreq;
+struct	in6_ifreq	ifr6;
+struct	in6_ifreq	in6_ridreq;
+struct	in6_aliasreq	in6_addreq;
 struct	sockaddr_in	netmask;
 
 char	name[IFNAMSIZ];
@@ -252,15 +253,15 @@ const struct afswtch {
 	void (*af_getprefix)(const char *, int);
 	u_long af_difaddr;
 	u_long af_aifaddr;
-	caddr_t af_ifreq;
-	caddr_t af_aliasreq;
+	caddr_t af_ridreq;
+	caddr_t af_addreq;
 } afs[] = {
 #define C(x) ((caddr_t) &x)
 	{ "inet", AF_INET, in_status, in_getaddr, in_getprefix,
-	    SIOCDIFADDR, SIOCAIFADDR, C(ifreq), C(in_aliasreq) },
+	    SIOCDIFADDR, SIOCAIFADDR, C(ridreq), C(in_addreq) },
 	{ "inet6", AF_INET6, in6_status, in6_getaddr, in6_getprefix,
-	    SIOCDIFADDR_IN6, SIOCAIFADDR_IN6, C(in6_ifreq), C(in6_aliasreq) },
-	{ 0 }
+	    SIOCDIFADDR_IN6, SIOCAIFADDR_IN6, C(in6_ridreq), C(in6_addreq) },
+	{ 0,	0,	    0,		0 }
 };
 
 const struct afswtch *afp;	/*the address family being set or asked about*/
@@ -340,8 +341,8 @@ main(int argc, char *argv[])
 	(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 
 	/* initialization */
-	in6_aliasreq.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
-	in6_aliasreq.ifra_lifetime.ia6t_vltime = ND6_INFINITE_LIFETIME;
+	in6_addreq.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
+	in6_addreq.ifra_lifetime.ia6t_vltime = ND6_INFINITE_LIFETIME;
 
 	if (aflag == 0) {
 		create = (argc > 0) && strcmp(argv[0], "destroy") != 0;
@@ -427,35 +428,37 @@ nextarg:
 	}
 
 	if (newaddr && clearaddr) {
-		(void) strlcpy(rafp->af_ifreq, name, sizeof(ifr.ifr_name));
+		(void) strlcpy(rafp->af_ridreq, name, sizeof(ifr.ifr_name));
 		/* IPv4 only, inet6 does not have such ioctls */
-		memcpy(&ifreq.ifr_addr, &in_aliasreq.ifra_addr,
-		    in_aliasreq.ifra_addr.sin_len);
-		if (ioctl(s, SIOCSIFADDR, rafp->af_ifreq) == -1)
-			err(1, "SIOCSIFADDR");
+		if (setaddr) {
+			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_addr,
+			    in_addreq.ifra_addr.sin_len);
+			if (ioctl(s, SIOCSIFADDR, rafp->af_ridreq) == -1)
+				err(1, "SIOCSIFADDR");
+		}
 		if (setmask) {
-			memcpy(&ifreq.ifr_addr, &in_aliasreq.ifra_mask,
-			    in_aliasreq.ifra_mask.sin_len);
-			if (ioctl(s, SIOCSIFNETMASK, rafp->af_ifreq) == -1)
+			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_mask,
+			    in_addreq.ifra_mask.sin_len);
+			if (ioctl(s, SIOCSIFNETMASK, rafp->af_ridreq) == -1)
 				err(1, "SIOCSIFNETMASK");
 		}
 		if (setipdst) {
-			memcpy(&ifreq.ifr_addr, &in_aliasreq.ifra_dstaddr,
-			    in_aliasreq.ifra_dstaddr.sin_len);
-			if (ioctl(s, SIOCSIFDSTADDR, rafp->af_ifreq) == -1)
+			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_dstaddr,
+			    in_addreq.ifra_dstaddr.sin_len);
+			if (ioctl(s, SIOCSIFDSTADDR, rafp->af_ridreq) == -1)
 				err(1, "SIOCSIFDSTADDR");
 		}
 		if (setbroad) {
-			memcpy(&ifreq.ifr_addr, &in_aliasreq.ifra_broadaddr,
-			    in_aliasreq.ifra_broadaddr.sin_len);
-			if (ioctl(s, SIOCSIFBRDADDR, rafp->af_ifreq) == -1)
+			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_broadaddr,
+			    in_addreq.ifra_broadaddr.sin_len);
+			if (ioctl(s, SIOCSIFBRDADDR, rafp->af_ridreq) == -1)
 				err(1, "SIOCSIFBRDADDR");
 		}
 		return (0);
 	}
 	if (clearaddr) {
-		(void) strlcpy(rafp->af_ifreq, name, sizeof(ifr.ifr_name));
-		if (ioctl(s, rafp->af_difaddr, rafp->af_ifreq) == -1) {
+		(void) strlcpy(rafp->af_ridreq, name, sizeof(ifr.ifr_name));
+		if (ioctl(s, rafp->af_difaddr, rafp->af_ridreq) == -1) {
 			if (errno == EADDRNOTAVAIL && (doalias >= 0)) {
 				/* means no previous address for interface */
 			} else
@@ -463,8 +466,8 @@ nextarg:
 		}
 	}
 	if (newaddr) {
-		(void) strlcpy(rafp->af_aliasreq, name, sizeof(ifr.ifr_name));
-		if (ioctl(s, rafp->af_aifaddr, rafp->af_aliasreq) == -1)
+		(void) strlcpy(rafp->af_addreq, name, sizeof(ifr.ifr_name));
+		if (ioctl(s, rafp->af_aifaddr, rafp->af_addreq) == -1)
 			err(1, "SIOCAIFADDR");
 	}
 	return (0);
@@ -667,7 +670,7 @@ printif(char *ifname, int ifaliases)
 	}
 }
 
-#define RADDR	0
+#define RIDADDR 0
 #define ADDR	1
 #define MASK	2
 #define DSTADDR	3
@@ -686,7 +689,7 @@ setifaddr(const char *addr, int param)
 		newaddr = 1;
 	if (doalias == 0)
 		clearaddr = 1;
-	afp->af_getaddr(addr, (doalias >= 0 ? ADDR : RADDR));
+	afp->af_getaddr(addr, (doalias >= 0 ? ADDR : RIDADDR));
 }
 
 #ifndef SMALL
@@ -734,8 +737,8 @@ void
 notealias(const char *addr, int param)
 {
 	if (setaddr && doalias == 0 && param < 0)
-		memcpy(rqtosa(af_ifreq), rqtosa(af_aliasreq),
-		    rqtosa(af_aliasreq)->sa_len);
+		memcpy(rqtosa(af_ridreq), rqtosa(af_addreq),
+		    rqtosa(af_addreq)->sa_len);
 	doalias = param;
 	if (param < 0) {
 		clearaddr = 1;
@@ -781,9 +784,9 @@ setia6flags(const char *vname, int value)
 
 	if (value < 0) {
 		value = -value;
-		in6_aliasreq.ifra_flags &= ~value;
+		in6_addreq.ifra_flags &= ~value;
 	} else
-		in6_aliasreq.ifra_flags |= value;
+		in6_addreq.ifra_flags |= value;
 }
 
 void
@@ -815,11 +818,11 @@ setia6lifetime(const char *cmd, const char *val)
 	if (afp->af_af != AF_INET6)
 		errx(1, "%s not allowed for this address family", cmd);
 	if (strcmp(cmd, "vltime") == 0) {
-		in6_aliasreq.ifra_lifetime.ia6t_expire = t + newval;
-		in6_aliasreq.ifra_lifetime.ia6t_vltime = newval;
+		in6_addreq.ifra_lifetime.ia6t_expire = t + newval;
+		in6_addreq.ifra_lifetime.ia6t_vltime = newval;
 	} else if (strcmp(cmd, "pltime") == 0) {
-		in6_aliasreq.ifra_lifetime.ia6t_preferred = t + newval;
-		in6_aliasreq.ifra_lifetime.ia6t_pltime = newval;
+		in6_addreq.ifra_lifetime.ia6t_preferred = t + newval;
+		in6_addreq.ifra_lifetime.ia6t_pltime = newval;
 	}
 }
 
@@ -836,7 +839,7 @@ setia6eui64(const char *cmd, int val)
 
 	addaf(name, AF_INET6);
 
-	in6 = (struct in6_addr *)&in6_aliasreq.ifra_addr.sin6_addr;
+	in6 = (struct in6_addr *)&in6_addreq.ifra_addr.sin6_addr;
 	if (memcmp(&in6addr_any.s6_addr[8], &in6->s6_addr[8], 8) != 0)
 		errx(1, "interface index is already filled");
 	if (getifaddrs(&ifap) != 0)
@@ -1590,11 +1593,8 @@ char_to_utf16(const char *in, uint16_t *out, size_t outlen)
 
 #define SIN(x) ((struct sockaddr_in *) &(x))
 struct sockaddr_in *sintab[] = {
-	SIN(ifreq.ifr_addr),
-	SIN(in_aliasreq.ifra_addr),
-	SIN(in_aliasreq.ifra_mask),
-	SIN(in_aliasreq.ifra_broadaddr)
-};
+SIN(ridreq.ifr_addr), SIN(in_addreq.ifra_addr),
+SIN(in_addreq.ifra_mask), SIN(in_addreq.ifra_broadaddr)};
 
 void
 in_getaddr(const char *s, int which)
@@ -1714,11 +1714,8 @@ printb_status(unsigned short v, unsigned char *bits)
 
 #define SIN6(x) ((struct sockaddr_in6 *) &(x))
 struct sockaddr_in6 *sin6tab[] = {
-	SIN6(in6_ifreq.ifr_addr),
-	SIN6(in6_aliasreq.ifra_addr),
-	SIN6(in6_aliasreq.ifra_prefixmask),
-	SIN6(in6_aliasreq.ifra_dstaddr)
-};
+SIN6(in6_ridreq.ifr_addr), SIN6(in6_addreq.ifra_addr),
+SIN6(in6_addreq.ifra_prefixmask), SIN6(in6_addreq.ifra_dstaddr)};
 
 void
 in6_getaddr(const char *s, int which)
