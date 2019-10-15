@@ -1,5 +1,11 @@
 /*	$OpenBSD: ifconfig.c,v 1.412 2019/09/02 12:54:21 stsp Exp $	*/
-/*	$NetBSD: ifconfig.c,v 1.40 1997/10/01 02:19:43 enami Exp $	*/
+
+/*
+ * This file has been copied from ifconfig and adapted to test
+ * SIOCSIFADDR, SIOCSIFNETMASK, SIOCSIFDSTADDR, SIOCSIFBRDADDR
+ * ioctls.  Ususally ifconfig uses SIOCAIFADDR and SIOCDIFADDR, but
+ * the old kernel interface has to be tested, too.
+ */
 
 /*
  * Copyright (c) 1983, 1993
@@ -427,7 +433,7 @@ nextarg:
 		/* in6_getprefix("64", MASK) if MASK is available here... */
 	}
 
-	if (newaddr && clearaddr) {
+	if (doalias == 0 || (newaddr && clearaddr)) {
 		(void) strlcpy(rafp->af_ridreq, name, sizeof(ifr.ifr_name));
 		/* IPv4 only, inet6 does not have such ioctls */
 		if (setaddr) {

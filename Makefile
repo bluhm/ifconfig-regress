@@ -84,8 +84,8 @@ run-ether-replace:
 	! grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
 
-REGRESS_TARGETS +=	run-ether-dup
-run-ether-dup:
+REGRESS_TARGETS +=	run-ether-duplicate
+run-ether-duplicate:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
@@ -111,8 +111,8 @@ run-ether-alias:
 	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
 
-REGRESS_TARGETS +=	run-ether-alias-dup
-run-ether-alias-dup:
+REGRESS_TARGETS +=	run-ether-alias-duplicate
+run-ether-alias-duplicate:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24 alias
@@ -151,20 +151,17 @@ run-ether-change-netmask:
 	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
 
-REGRESS_TARGETS +=	run-ether-change-netmask2
-run-ether-change-netmask2:
+REGRESS_TARGETS +=	run-ether-delete-netmask
+run-ether-delete-netmask:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
+	# ifconfig deletes .1 and changes .2 netmask
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/32
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
+	! grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 netmask 0xffffffff$$' ifconfig.out
 	grep -c 'inet ${ETHER_NET}.2 ' ifconfig.out | grep 1
-
-# We add two addresses, replace one, and end up with only one.
-# This should be investigated.
-REGRESS_EXPECTED_FAILURES +=	run-ether-change-netmask2
 
 REGRESS_TARGETS +=	run-ether-alias-netmask
 run-ether-alias-netmask:
@@ -277,6 +274,48 @@ run-ether-ifaddr-alias:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-ifaddr-change-netmask
+run-ether-ifaddr-change-netmask:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24 alias
+	${IFADDR} ${ETHER_IF} netmask 255.255.255.255
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff ' ifconfig.out
+	grep 'inet ${ETHER_NET}.2 netmask 0xffffff00 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-ifaddr-change-destination
+run-ppp-ifaddr-change-destination:
+	@echo '======== $@ ========'
+	${IFADDR} ${PPP_IF} ${PPP_NET}.1 ${PPP_NET}.11
+	${IFADDR} ${PPP_IF} ${PPP_NET}.2 ${PPP_NET}.12 alias
+	${IFADDR} ${PPP_IF} ipdst ${PPP_NET}.13
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_NET}.1 --> ${PPP_NET}.13 ' ifconfig.out
+	grep 'inet ${PPP_NET}.2 --> ${PPP_NET}.12 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-ifaddr-change-broadcast
+run-ether-ifaddr-change-broadcast:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24 broadcast ${ETHER_NET}.255
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24 broadcast ${ETHER_NET}.255 alias
+	${IFADDR} ${ETHER_IF} broadcast 255.255.255.255
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 .* broadcast 255.255.255.255$$' ifconfig.out
+	grep 'inet ${ETHER_NET}.2 .* broadcast ${ETHER_NET}.255$$' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-ifaddr-duplicate
+run-ether-ifaddr-duplicate:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/16 alias
+	/sbin/ifconfig ${ETHER_IF}
+	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24
+	/sbin/ifconfig ${ETHER_IF}
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 netmask 0xffffff00 ' ifconfig.out
+	grep 'inet ${ETHER_NET}.2 netmask 0xffffff00 ' ifconfig.out
 
 ### setup cleanup
 
