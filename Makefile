@@ -47,8 +47,8 @@ run-ether-inet:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} ' ifconfig.out
 
-REGRESS_TARGETS +=	run-ether-mask
-run-ether-mask:
+REGRESS_TARGETS +=	run-ether-netmask
+run-ether-netmask:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.0
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
@@ -140,8 +140,8 @@ run-ether-alias-host:
 	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff$$' ifconfig.out
 	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
 
-REGRESS_TARGETS +=	run-ether-change-mask
-run-ether-change-mask:
+REGRESS_TARGETS +=	run-ether-change-netmask
+run-ether-change-netmask:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
@@ -151,8 +151,8 @@ run-ether-change-mask:
 	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
 
-REGRESS_TARGETS +=	run-ether-change-mask2
-run-ether-change-mask2:
+REGRESS_TARGETS +=	run-ether-change-netmask2
+run-ether-change-netmask2:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
@@ -164,10 +164,10 @@ run-ether-change-mask2:
 
 # We add two addresses, replace one, and end up with only one.
 # This should be investigated.
-REGRESS_EXPECTED_FAILURES +=	run-ether-change-mask2
+REGRESS_EXPECTED_FAILURES +=	run-ether-change-netmask2
 
-REGRESS_TARGETS +=	run-ether-alias-mask
-run-ether-alias-mask:
+REGRESS_TARGETS +=	run-ether-alias-netmask
+run-ether-alias-netmask:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
@@ -193,8 +193,8 @@ run-ppp-inet:
 	/sbin/ifconfig ${PPP_IF} >ifconfig.out
 	grep 'inet ${PPP_ADDR} ' ifconfig.out
 
-REGRESS_TARGETS +=	run-ppp-mask
-run-ppp-mask:
+REGRESS_TARGETS +=	run-ppp-netmask
+run-ppp-netmask:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${PPP_IF} ${PPP_ADDR} netmask 255.255.255.0
 	/sbin/ifconfig ${PPP_IF} >ifconfig.out
@@ -241,12 +241,26 @@ run-ether-ifaddr-set:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} ' ifconfig.out
 
-REGRESS_TARGETS +=	run-ether-ifaddr-mask
-run-ether-ifaddr-mask:
+REGRESS_TARGETS +=	run-ether-ifaddr-netmask
+run-ether-ifaddr-netmask:
 	@echo '======== $@ ========'
 	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.0
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-ifaddr-destination
+run-ppp-ifaddr-destination:
+	@echo '======== $@ ========'
+	${IFADDR} ${PPP_IF} ${PPP_ADDR} ${PPP_DEST}
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet ${PPP_ADDR} --> ${PPP_DEST} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-ifaddr-broadcast
+run-ether-ifaddr-broadcast:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} broadcast ${ETHER_NET}.255
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_ADDR} .* broadcast ${ETHER_NET}.255$$' ifconfig.out
 
 REGRESS_TARGETS +=	run-ether-ifaddr-alias
 run-ether-ifaddr-alias:
