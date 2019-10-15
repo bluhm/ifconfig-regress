@@ -1272,6 +1272,7 @@ in_status(int force)
 void
 setifprefixlen(const char *addr, int d)
 {
+	setmask++;
 	if (afp->af_getprefix)
 		afp->af_getprefix(addr, MASK);
 	explicit_prefix = 1;
@@ -1615,6 +1616,7 @@ in_getaddr(const char *s, int which)
 		l = snprintf(p, sizeof(p), "%d", bits);
 		if (l < 0 || l >= sizeof(p))
 			errx(1, "%d: bad prefixlen", bits);
+		setmask++;
 		in_getprefix(p, MASK);
 		memcpy(&sin->sin_addr, &tsin.sin_addr, sizeof(sin->sin_addr));
 	} else if (inet_aton(s, &sin->sin_addr) == 0) {
@@ -1735,6 +1737,7 @@ in6_getaddr(const char *s, int which)
 		pfxlen = strchr(buf, '/');
 		*pfxlen++ = '\0';
 		s = buf;
+		setmask++;
 		in6_getprefix(pfxlen, MASK);
 		explicit_prefix = 1;
 	}

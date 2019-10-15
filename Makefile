@@ -248,6 +248,13 @@ run-ether-ifaddr-netmask:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
 
+REGRESS_TARGETS +=	run-ether-ifaddr-prefixlen
+run-ether-ifaddr-prefixlen:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR}/24
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
+
 REGRESS_TARGETS +=	run-ppp-ifaddr-destination
 run-ppp-ifaddr-destination:
 	@echo '======== $@ ========'
