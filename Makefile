@@ -91,7 +91,7 @@ run-ether-duplicate:
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
-	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
+	grep -c 'inet ' ifconfig.out | grep -q 1
 
 REGRESS_TARGETS +=	run-ether-host
 run-ether-host:
@@ -100,7 +100,7 @@ run-ether-host:
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/32
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff$$' ifconfig.out
-	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
+	grep -c 'inet ' ifconfig.out | grep -q 1
 
 REGRESS_TARGETS +=	run-ether-alias
 run-ether-alias:
@@ -118,7 +118,7 @@ run-ether-alias-duplicate:
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24 alias
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
-	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
+	grep -c 'inet ' ifconfig.out | grep -q 1
 
 REGRESS_TARGETS +=	run-ether-replace-first
 run-ether-replace-first:
@@ -138,7 +138,7 @@ run-ether-alias-host:
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/32 alias
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff$$' ifconfig.out
-	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
+	grep -c 'inet ' ifconfig.out | grep -q 1
 
 REGRESS_TARGETS +=	run-ether-change-netmask
 run-ether-change-netmask:
@@ -148,20 +148,20 @@ run-ether-change-netmask:
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/32
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff$$' ifconfig.out
-	grep -c 'inet ${ETHER_NET}.1 ' ifconfig.out | grep 1
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
+	grep -c 'inet ' ifconfig.out | grep -q 2
 
 REGRESS_TARGETS +=	run-ether-delete-netmask
 run-ether-delete-netmask:
 	@echo '======== $@ ========'
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
-	# ifconfig deletes .1 and changes .2 netmask
+	# XXX ifconfig deletes .1 and changes .2 netmask
 	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/32
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	! grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 netmask 0xffffffff$$' ifconfig.out
-	grep -c 'inet ${ETHER_NET}.2 ' ifconfig.out | grep 1
+	grep -c 'inet ' ifconfig.out | grep -q 1
 
 REGRESS_TARGETS +=	run-ether-alias-netmask
 run-ether-alias-netmask:
@@ -172,7 +172,7 @@ run-ether-alias-netmask:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 netmask 0xffffffff$$' ifconfig.out
-	grep -c 'inet ${ETHER_NET}.2 ' ifconfig.out | grep 1
+	grep -c 'inet ${ETHER_NET}.2 ' ifconfig.out | grep -q 1
 
 REGRESS_TARGETS +=	run-ether-delete
 run-ether-delete:
@@ -338,12 +338,12 @@ run-ether-ifaddr-duplicate:
 	@echo '======== $@ ========'
 	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24
 	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/16 alias
-	/sbin/ifconfig ${ETHER_IF}
+	# XXX replace the first address and create two identical addresses
 	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24
-	/sbin/ifconfig ${ETHER_IF}
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_NET}.1 netmask 0xffffff00 ' ifconfig.out
+	! grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 netmask 0xffffff00 ' ifconfig.out
+	grep -c 'inet ' ifconfig.out | grep -q 2
 
 ### setup cleanup
 
