@@ -17,7 +17,6 @@
 # test ifconfig address configuration for ethernet and point-to-point
 
 IFCONFIG ?=	${SUDO} ${KTRACE} /sbin/ifconfig
-IFADDR =	${SUDO} ${KTRACE} ./ifaddr
 
 ETHER_IF ?=	vether99
 ETHER_ADDR ?=	10.188.254.74
@@ -26,8 +25,6 @@ PPP_IF ?=	ppp99
 PPP_ADDR ?=	10.188.253.74
 PPP_DEST ?=	10.188.253.75
 PPP_NET =	${PPP_ADDR:C/\.[0-9][0-9]*$//}
-
-PROG =		ifaddr
 
 CLEANFILES =	ifconfig.out ktrace.out
 
@@ -229,99 +226,9 @@ run-ppp-alias:
 	grep 'inet ${PPP_NET}.1 --> ${PPP_DEST} ' ifconfig.out
 	grep 'inet ${PPP_NET}.2 --> ${PPP_DEST} ' ifconfig.out
 
-### ifaddr
-
-REGRESS_TARGETS +=	run-ether-ifaddr-set
-run-ether-ifaddr-set:
-	@echo '======== $@ ========'
-	${IFADDR} ${ETHER_IF} ${ETHER_ADDR}
-	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_ADDR} ' ifconfig.out
-
-REGRESS_TARGETS +=	run-ether-ifaddr-netmask
-run-ether-ifaddr-netmask:
-	@echo '======== $@ ========'
-	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.0
-	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
-
-REGRESS_TARGETS +=	run-ether-ifaddr-prefixlen
-run-ether-ifaddr-prefixlen:
-	@echo '======== $@ ========'
-	${IFADDR} ${ETHER_IF} ${ETHER_ADDR}/24
-	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
-
-REGRESS_TARGETS +=	run-ppp-ifaddr-destination
-run-ppp-ifaddr-destination:
-	@echo '======== $@ ========'
-	${IFADDR} ${PPP_IF} ${PPP_ADDR} ${PPP_DEST}
-	/sbin/ifconfig ${PPP_IF} >ifconfig.out
-	grep 'inet ${PPP_ADDR} --> ${PPP_DEST} ' ifconfig.out
-
-REGRESS_TARGETS +=	run-ether-ifaddr-broadcast
-run-ether-ifaddr-broadcast:
-	@echo '======== $@ ========'
-	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} broadcast ${ETHER_NET}.255
-	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_ADDR} .* broadcast ${ETHER_NET}.255$$' ifconfig.out
-
-REGRESS_TARGETS +=	run-ether-ifaddr-alias
-run-ether-ifaddr-alias:
-	@echo '======== $@ ========'
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24 alias
-	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
-	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
-
-REGRESS_TARGETS +=	run-ether-ifaddr-change-netmask
-run-ether-ifaddr-change-netmask:
-	@echo '======== $@ ========'
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24 alias
-	${IFADDR} ${ETHER_IF} netmask 255.255.255.255
-	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_NET}.1 netmask 0xffffffff ' ifconfig.out
-	grep 'inet ${ETHER_NET}.2 netmask 0xffffff00 ' ifconfig.out
-
-REGRESS_TARGETS +=	run-ppp-ifaddr-change-destination
-run-ppp-ifaddr-change-destination:
-	@echo '======== $@ ========'
-	${IFADDR} ${PPP_IF} ${PPP_NET}.1 ${PPP_NET}.11
-	${IFADDR} ${PPP_IF} ${PPP_NET}.2 ${PPP_NET}.12 alias
-	${IFADDR} ${PPP_IF} ipdst ${PPP_NET}.13
-	/sbin/ifconfig ${PPP_IF} >ifconfig.out
-	grep 'inet ${PPP_NET}.1 --> ${PPP_NET}.13 ' ifconfig.out
-	grep 'inet ${PPP_NET}.2 --> ${PPP_NET}.12 ' ifconfig.out
-
-REGRESS_TARGETS +=	run-ether-ifaddr-change-broadcast
-run-ether-ifaddr-change-broadcast:
-	@echo '======== $@ ========'
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24 broadcast ${ETHER_NET}.255
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24 broadcast ${ETHER_NET}.255 alias
-	${IFADDR} ${ETHER_IF} broadcast 255.255.255.255
-	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_NET}.1 .* broadcast 255.255.255.255$$' ifconfig.out
-	grep 'inet ${ETHER_NET}.2 .* broadcast ${ETHER_NET}.255$$' ifconfig.out
-
-REGRESS_TARGETS +=	run-ether-ifaddr-duplicate
-run-ether-ifaddr-duplicate:
-	@echo '======== $@ ========'
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.1/24
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/16 alias
-	/sbin/ifconfig ${ETHER_IF}
-	${IFADDR} ${ETHER_IF} ${ETHER_NET}.2/24
-	/sbin/ifconfig ${ETHER_IF}
-	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
-	grep 'inet ${ETHER_NET}.1 netmask 0xffffff00 ' ifconfig.out
-	grep 'inet ${ETHER_NET}.2 netmask 0xffffff00 ' ifconfig.out
-
 ### setup cleanup
 
 REGRESS_ROOT_TARGETS =	${REGRESS_TARGETS}
-
-${REGRESS_TARGETS:Mrun-*-ifaddr-*}: ifaddr
 
 ${REGRESS_TARGETS:Mrun-ether-*}: setup-ether
 setup-ether:
