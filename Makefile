@@ -174,6 +174,34 @@ run-ether-alias-netmask:
 	grep 'inet ${ETHER_NET}.2 netmask 0xffffffff$$' ifconfig.out
 	grep -c 'inet ${ETHER_NET}.2 ' ifconfig.out | grep 1
 
+REGRESS_TARGETS +=	run-ether-delete
+run-ether-delete:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1 delete
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-delete-first
+run-ether-delete-first:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1 delete
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet ${ETHER_NET}.1 ' ifconfig.out
+	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-delete-second
+run-ether-delete-second:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.1/24
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2/24 alias
+	${IFCONFIG} ${ETHER_IF} ${ETHER_NET}.2 delete
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
+	! grep 'inet ${ETHER_NET}.2 ' ifconfig.out
+
 ### ppp
 
 REGRESS_TARGETS +=	run-ppp-addr
