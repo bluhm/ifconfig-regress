@@ -134,7 +134,7 @@ int	flags, xflags, setaddr, setmask, setipdst, setbroad, doalias;
 u_long	metric, mtu;
 int	rdomainid;
 int	llprio;
-int	clearaddr, s;
+int	clearaddr, sock;
 int	newaddr = 0;
 int	af = AF_INET;
 int	explicit_prefix = 0;
@@ -219,7 +219,7 @@ const struct	cmd {
 	{ NULL, /*illegal*/0,		0,		NULL },
 };
 
-#define IFFBITS								\
+#define	IFFBITS								\
 	"\024\1UP\2BROADCAST\3DEBUG\4LOOPBACK\5POINTOPOINT\6STATICARP"	\
 	"\7RUNNING\10NOARP\11PROMISC\12ALLMULTI\13OACTIVE\14SIMPLEX"	\
 	"\15LINK0\16LINK1\17LINK2\20MULTICAST"				\
@@ -439,32 +439,32 @@ nextarg:
 		if (setaddr) {
 			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_addr,
 			    in_addreq.ifra_addr.sin_len);
-			if (ioctl(s, SIOCSIFADDR, rafp->af_ridreq) == -1)
+			if (ioctl(sock, SIOCSIFADDR, rafp->af_ridreq) == -1)
 				err(1, "SIOCSIFADDR");
 		}
 		if (setmask) {
 			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_mask,
 			    in_addreq.ifra_mask.sin_len);
-			if (ioctl(s, SIOCSIFNETMASK, rafp->af_ridreq) == -1)
+			if (ioctl(sock, SIOCSIFNETMASK, rafp->af_ridreq) == -1)
 				err(1, "SIOCSIFNETMASK");
 		}
 		if (setipdst) {
 			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_dstaddr,
 			    in_addreq.ifra_dstaddr.sin_len);
-			if (ioctl(s, SIOCSIFDSTADDR, rafp->af_ridreq) == -1)
+			if (ioctl(sock, SIOCSIFDSTADDR, rafp->af_ridreq) == -1)
 				err(1, "SIOCSIFDSTADDR");
 		}
 		if (setbroad) {
 			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_broadaddr,
 			    in_addreq.ifra_broadaddr.sin_len);
-			if (ioctl(s, SIOCSIFBRDADDR, rafp->af_ridreq) == -1)
+			if (ioctl(sock, SIOCSIFBRDADDR, rafp->af_ridreq) == -1)
 				err(1, "SIOCSIFBRDADDR");
 		}
 		return (0);
 	}
 	if (clearaddr) {
 		(void) strlcpy(rafp->af_ridreq, name, sizeof(ifr.ifr_name));
-		if (ioctl(s, rafp->af_difaddr, rafp->af_ridreq) == -1) {
+		if (ioctl(sock, rafp->af_difaddr, rafp->af_ridreq) == -1) {
 			if (errno == EADDRNOTAVAIL && (doalias >= 0)) {
 				/* means no previous address for interface */
 			} else
@@ -473,7 +473,7 @@ nextarg:
 	}
 	if (newaddr) {
 		(void) strlcpy(rafp->af_addreq, name, sizeof(ifr.ifr_name));
-		if (ioctl(s, rafp->af_aifaddr, rafp->af_addreq) == -1)
+		if (ioctl(sock, rafp->af_aifaddr, rafp->af_addreq) == -1)
 			err(1, "SIOCAIFADDR");
 	}
 	return (0);
@@ -487,9 +487,9 @@ getsock(int naf)
 	if (oaf == naf)
 		return;
 	if (oaf != -1)
-		close(s);
-	s = socket(naf, SOCK_DGRAM, 0);
-	if (s == -1)
+		close(sock);
+	sock = socket(naf, SOCK_DGRAM, 0);
+	if (sock == -1)
 		oaf = -1;
 	else
 		oaf = naf;
@@ -500,41 +500,41 @@ getinfo(struct ifreq *ifr, int create)
 {
 
 	getsock(af);
-	if (s == -1)
+	if (sock == -1)
 		err(1, "socket");
 	if (!isdigit((unsigned char)name[strlen(name) - 1]))
 		return (-1);	/* ignore groups here */
-	if (ioctl(s, SIOCGIFFLAGS, (caddr_t)ifr) == -1) {
+	if (ioctl(sock, SIOCGIFFLAGS, (caddr_t)ifr) == -1) {
 		int oerrno = errno;
 
 		if (!create)
 			return (-1);
-		if (ioctl(s, SIOCIFCREATE, (caddr_t)ifr) == -1) {
+		if (ioctl(sock, SIOCIFCREATE, (caddr_t)ifr) == -1) {
 			errno = oerrno;
 			return (-1);
 		}
-		if (ioctl(s, SIOCGIFFLAGS, (caddr_t)ifr) == -1)
+		if (ioctl(sock, SIOCGIFFLAGS, (caddr_t)ifr) == -1)
 			return (-1);
 	}
 	flags = ifr->ifr_flags & 0xffff;
-	if (ioctl(s, SIOCGIFXFLAGS, (caddr_t)ifr) == -1)
+	if (ioctl(sock, SIOCGIFXFLAGS, (caddr_t)ifr) == -1)
 		ifr->ifr_flags = 0;
 	xflags = ifr->ifr_flags;
-	if (ioctl(s, SIOCGIFMETRIC, (caddr_t)ifr) == -1)
+	if (ioctl(sock, SIOCGIFMETRIC, (caddr_t)ifr) == -1)
 		metric = 0;
 	else
 		metric = ifr->ifr_metric;
-	if (ioctl(s, SIOCGIFMTU, (caddr_t)ifr) == -1)
+	if (ioctl(sock, SIOCGIFMTU, (caddr_t)ifr) == -1)
 		mtu = 0;
 	else
 		mtu = ifr->ifr_mtu;
 #ifndef SMALL
-	if (ioctl(s, SIOCGIFRDOMAIN, (caddr_t)ifr) == -1)
+	if (ioctl(sock, SIOCGIFRDOMAIN, (caddr_t)ifr) == -1)
 		rdomainid = 0;
 	else
 		rdomainid = ifr->ifr_rdomainid;
 #endif
-	if (ioctl(s, SIOCGIFLLPRIO, (caddr_t)ifr) == -1)
+	if (ioctl(sock, SIOCGIFLLPRIO, (caddr_t)ifr) == -1)
 		llprio = 0;
 	else
 		llprio = ifr->ifr_llprio;
@@ -552,7 +552,7 @@ printgroup(char *groupname, int ifaliases)
 	getsock(AF_INET);
 	bzero(&ifgr, sizeof(ifgr));
 	strlcpy(ifgr.ifgr_name, groupname, sizeof(ifgr.ifgr_name));
-	if (ioctl(s, SIOCGIFGMEMB, (caddr_t)&ifgr) == -1) {
+	if (ioctl(sock, SIOCGIFGMEMB, (caddr_t)&ifgr) == -1) {
 		if (errno == EINVAL || errno == ENOTTY ||
 		    errno == ENOENT)
 			return (-1);
@@ -563,7 +563,7 @@ printgroup(char *groupname, int ifaliases)
 	len = ifgr.ifgr_len;
 	if ((ifgr.ifgr_groups = calloc(1, len)) == NULL)
 		err(1, "printgroup");
-	if (ioctl(s, SIOCGIFGMEMB, (caddr_t)&ifgr) == -1)
+	if (ioctl(sock, SIOCGIFGMEMB, (caddr_t)&ifgr) == -1)
 		err(1, "SIOCGIFGMEMB");
 
 	for (ifg = ifgr.ifgr_groups; ifg && len >= sizeof(struct ifg_req);
@@ -706,7 +706,7 @@ setifrtlabel(const char *label, int d)
 		ifr.ifr_data = (caddr_t)(const char *)"";
 	else
 		ifr.ifr_data = (caddr_t)label;
-	if (ioctl(s, SIOCSIFRTLABEL, &ifr) == -1)
+	if (ioctl(sock, SIOCSIFRTLABEL, &ifr) == -1)
 		warn("SIOCSIFRTLABEL");
 }
 #endif
@@ -769,7 +769,7 @@ addaf(const char *vname, int value)
 
 	strlcpy(ifar.ifar_name, name, sizeof(ifar.ifar_name));
 	ifar.ifar_af = value;
-	if (ioctl(s, SIOCIFAFATTACH, (caddr_t)&ifar) == -1)
+	if (ioctl(sock, SIOCIFAFATTACH, (caddr_t)&ifar) == -1)
 		warn("SIOCIFAFATTACH");
 }
 
@@ -780,7 +780,7 @@ removeaf(const char *vname, int value)
 
 	strlcpy(ifar.ifar_name, name, sizeof(ifar.ifar_name));
 	ifar.ifar_af = value;
-	if (ioctl(s, SIOCIFAFDETACH, (caddr_t)&ifar) == -1)
+	if (ioctl(sock, SIOCIFAFDETACH, (caddr_t)&ifar) == -1)
 		warn("SIOCIFAFDETACH");
 }
 
@@ -1031,7 +1031,7 @@ phys_status(int force)
 
 	memset(&req, 0, sizeof(req));
 	(void) strlcpy(req.iflr_name, name, sizeof(req.iflr_name));
-	if (ioctl(s, SIOCGLIFPHYADDR, (caddr_t)&req) == -1) {
+	if (ioctl(sock, SIOCGLIFPHYADDR, (caddr_t)&req) == -1) {
 		if (errno != EADDRNOTAVAIL)
 			return;
 
@@ -1041,21 +1041,21 @@ phys_status(int force)
 	printf("\ttunnel: ");
 	print_tunnel(r);
 
-	if (ioctl(s, SIOCGLIFPHYTTL, (caddr_t)&ifr) == 0) {
+	if (ioctl(sock, SIOCGLIFPHYTTL, (caddr_t)&ifr) == 0) {
 		if (ifr.ifr_ttl == -1)
 			printf(" ttl copy");
 		else if (ifr.ifr_ttl > 0)
 			printf(" ttl %d", ifr.ifr_ttl);
 	}
 
-	if (ioctl(s, SIOCGLIFPHYDF, (caddr_t)&ifr) == 0)
+	if (ioctl(sock, SIOCGLIFPHYDF, (caddr_t)&ifr) == 0)
 		printf(" %s", ifr.ifr_df ? "df" : "nodf");
 
 #ifndef SMALL
-	if (ioctl(s, SIOCGLIFPHYECN, (caddr_t)&ifr) == 0)
+	if (ioctl(sock, SIOCGLIFPHYECN, (caddr_t)&ifr) == 0)
 		printf(" %s", ifr.ifr_metric ? "ecn" : "noecn");
 
-	if (ioctl(s, SIOCGLIFPHYRTABLE, (caddr_t)&ifr) == 0 &&
+	if (ioctl(sock, SIOCGLIFPHYRTABLE, (caddr_t)&ifr) == 0 &&
 	    (rdomainid != 0 || ifr.ifr_rdomainid != 0))
 		printf(" rdomain %d", ifr.ifr_rdomainid);
 #endif
@@ -1122,7 +1122,7 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 	(void) memset(&ifrdesc, 0, sizeof(ifrdesc));
 	(void) strlcpy(ifrdesc.ifr_name, name, sizeof(ifrdesc.ifr_name));
 	ifrdesc.ifr_data = (caddr_t)&ifdescr;
-	if (ioctl(s, SIOCGIFDESCR, &ifrdesc) == 0 &&
+	if (ioctl(sock, SIOCGIFDESCR, &ifrdesc) == 0 &&
 	    strlen(ifrdesc.ifr_data))
 		printf("\tdescription: %s\n", ifrdesc.ifr_data);
 
@@ -1130,7 +1130,7 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 		printf("%cindex %u", sep, sdl->sdl_index);
 		sep = ' ';
 	}
-	if (ioctl(s, SIOCGIFPRIORITY, &ifrdesc) == 0) {
+	if (ioctl(sock, SIOCGIFPRIORITY, &ifrdesc) == 0) {
 		printf("%cpriority %d", sep, ifrdesc.ifr_metric);
 		sep = ' ';
 	}
@@ -1140,7 +1140,7 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 	(void) memset(&ifmr, 0, sizeof(ifmr));
 	(void) strlcpy(ifmr.ifm_name, name, sizeof(ifmr.ifm_name));
 
-	if (ioctl(s, SIOCGIFMEDIA, (caddr_t)&ifmr) == -1) {
+	if (ioctl(sock, SIOCGIFMEDIA, (caddr_t)&ifmr) == -1) {
 		/*
 		 * Interface doesn't support SIOC{G,S}IFMEDIA.
 		 */
@@ -1160,7 +1160,7 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 		err(1, "calloc");
 	ifmr.ifm_ulist = media_list;
 
-	if (ioctl(s, SIOCGIFMEDIA, (caddr_t)&ifmr) == -1)
+	if (ioctl(sock, SIOCGIFMEDIA, (caddr_t)&ifmr) == -1)
 		err(1, "SIOCGIFMEDIA");
 
 #ifdef SMALL
@@ -1220,7 +1220,7 @@ in_status(int force)
 	struct sockaddr_in *sin, sin2;
 
 	getsock(AF_INET);
-	if (s == -1) {
+	if (sock == -1) {
 		if (errno == EPROTONOSUPPORT)
 			return;
 		err(1, "socket");
@@ -1238,7 +1238,7 @@ in_status(int force)
 
 	printf("\tinet %s", inet_ntoa(sin->sin_addr));
 	(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
-	if (ioctl(s, SIOCGIFNETMASK, (caddr_t)&ifr) == -1) {
+	if (ioctl(sock, SIOCGIFNETMASK, (caddr_t)&ifr) == -1) {
 		if (errno != EADDRNOTAVAIL)
 			warn("SIOCGIFNETMASK");
 		memset(&ifr.ifr_addr, 0, sizeof(ifr.ifr_addr));
@@ -1247,7 +1247,7 @@ in_status(int force)
 		    ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr;
 	if (flags & IFF_POINTOPOINT) {
 		memcpy(&ifr.ifr_addr, &sin2, sizeof(sin2));
-		if (ioctl(s, SIOCGIFDSTADDR, (caddr_t)&ifr) == -1) {
+		if (ioctl(sock, SIOCGIFDSTADDR, (caddr_t)&ifr) == -1) {
 			if (errno == EADDRNOTAVAIL)
 			    memset(&ifr.ifr_addr, 0, sizeof(ifr.ifr_addr));
 			else
@@ -1260,7 +1260,7 @@ in_status(int force)
 	printf(" netmask 0x%x", ntohl(netmask.sin_addr.s_addr));
 	if (flags & IFF_BROADCAST) {
 		memcpy(&ifr.ifr_addr, &sin2, sizeof(sin2));
-		if (ioctl(s, SIOCGIFBRDADDR, (caddr_t)&ifr) == -1) {
+		if (ioctl(sock, SIOCGIFBRDADDR, (caddr_t)&ifr) == -1) {
 			if (errno == EADDRNOTAVAIL)
 			    memset(&ifr.ifr_addr, 0, sizeof(ifr.ifr_addr));
 			else
@@ -1308,7 +1308,7 @@ in6_alias(struct in6_ifreq *creq)
 
 	/* Get the non-alias address for this interface. */
 	getsock(AF_INET6);
-	if (s == -1) {
+	if (sock == -1) {
 		if (errno == EPROTONOSUPPORT)
 			return;
 		err(1, "socket");
@@ -1327,7 +1327,7 @@ in6_alias(struct in6_ifreq *creq)
 		(void) memset(&ifr6, 0, sizeof(ifr6));
 		(void) strlcpy(ifr6.ifr_name, name, sizeof(ifr6.ifr_name));
 		ifr6.ifr_addr = creq->ifr_addr;
-		if (ioctl(s, SIOCGIFDSTADDR_IN6, (caddr_t)&ifr6) == -1) {
+		if (ioctl(sock, SIOCGIFDSTADDR_IN6, (caddr_t)&ifr6) == -1) {
 			if (errno != EADDRNOTAVAIL)
 				warn("SIOCGIFDSTADDR_IN6");
 			(void) memset(&ifr6.ifr_addr, 0, sizeof(ifr6.ifr_addr));
@@ -1345,7 +1345,7 @@ in6_alias(struct in6_ifreq *creq)
 	(void) memset(&ifr6, 0, sizeof(ifr6));
 	(void) strlcpy(ifr6.ifr_name, name, sizeof(ifr6.ifr_name));
 	ifr6.ifr_addr = creq->ifr_addr;
-	if (ioctl(s, SIOCGIFNETMASK_IN6, (caddr_t)&ifr6) == -1) {
+	if (ioctl(sock, SIOCGIFNETMASK_IN6, (caddr_t)&ifr6) == -1) {
 		if (errno != EADDRNOTAVAIL)
 			warn("SIOCGIFNETMASK_IN6");
 	} else {
@@ -1357,7 +1357,7 @@ in6_alias(struct in6_ifreq *creq)
 	(void) memset(&ifr6, 0, sizeof(ifr6));
 	(void) strlcpy(ifr6.ifr_name, name, sizeof(ifr6.ifr_name));
 	ifr6.ifr_addr = creq->ifr_addr;
-	if (ioctl(s, SIOCGIFAFLAG_IN6, (caddr_t)&ifr6) == -1) {
+	if (ioctl(sock, SIOCGIFAFLAG_IN6, (caddr_t)&ifr6) == -1) {
 		if (errno != EADDRNOTAVAIL)
 			warn("SIOCGIFAFLAG_IN6");
 	} else {
@@ -1387,7 +1387,7 @@ in6_alias(struct in6_ifreq *creq)
 		(void) strlcpy(ifr6.ifr_name, name, sizeof(ifr6.ifr_name));
 		ifr6.ifr_addr = creq->ifr_addr;
 		lifetime = &ifr6.ifr_ifru.ifru_lifetime;
-		if (ioctl(s, SIOCGIFALIFETIME_IN6, (caddr_t)&ifr6) == -1) {
+		if (ioctl(sock, SIOCGIFALIFETIME_IN6, (caddr_t)&ifr6) == -1) {
 			if (errno != EADDRNOTAVAIL)
 				warn("SIOCGIFALIFETIME_IN6");
 		} else if (lifetime->ia6t_preferred || lifetime->ia6t_expire) {
@@ -1458,7 +1458,7 @@ settunnel(const char *src, const char *dst)
 	(void) strlcpy(req.iflr_name, name, sizeof(req.iflr_name));
 	memcpy(&req.addr, srcres->ai_addr, srcres->ai_addrlen);
 	memcpy(&req.dstaddr, dstres->ai_addr, dstres->ai_addrlen);
-	if (ioctl(s, SIOCSLIFPHYADDR, &req) == -1)
+	if (ioctl(sock, SIOCSLIFPHYADDR, &req) == -1)
 		warn("SIOCSLIFPHYADDR");
 
 	freeaddrinfo(srcres);
@@ -1493,7 +1493,7 @@ settunneladdr(const char *addr, int ignored)
 	req.dstaddr.ss_len = 2;
 	req.dstaddr.ss_family = AF_UNSPEC;
 
-	if (ioctl(s, SIOCSLIFPHYADDR, &req) == -1)
+	if (ioctl(sock, SIOCSLIFPHYADDR, &req) == -1)
 		warn("tunneladdr %s", addr);
 
 	freeaddrinfo(res);
@@ -1503,7 +1503,7 @@ settunneladdr(const char *addr, int ignored)
 void
 deletetunnel(const char *ignored, int alsoignored)
 {
-	if (ioctl(s, SIOCDIFPHYADDR, &ifr) == -1)
+	if (ioctl(sock, SIOCDIFPHYADDR, &ifr) == -1)
 		warn("SIOCDIFPHYADDR");
 }
 
@@ -1519,7 +1519,7 @@ settunnelinst(const char *id, int param)
 
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 	ifr.ifr_rdomainid = rdomainid;
-	if (ioctl(s, SIOCSLIFPHYRTABLE, (caddr_t)&ifr) == -1)
+	if (ioctl(sock, SIOCSLIFPHYRTABLE, (caddr_t)&ifr) == -1)
 		warn("SIOCSLIFPHYRTABLE");
 }
 
@@ -1528,7 +1528,7 @@ unsettunnelinst(const char *ignored, int alsoignored)
 {
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 	ifr.ifr_rdomainid = 0;
-	if (ioctl(s, SIOCSLIFPHYRTABLE, (caddr_t)&ifr) == -1)
+	if (ioctl(sock, SIOCSLIFPHYRTABLE, (caddr_t)&ifr) == -1)
 		warn("SIOCSLIFPHYRTABLE");
 }
 
@@ -1548,7 +1548,7 @@ settunnelttl(const char *id, int param)
 
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 	ifr.ifr_ttl = ttl;
-	if (ioctl(s, SIOCSLIFPHYTTL, (caddr_t)&ifr) == -1)
+	if (ioctl(sock, SIOCSLIFPHYTTL, (caddr_t)&ifr) == -1)
 		warn("SIOCSLIFPHYTTL");
 }
 
@@ -1839,11 +1839,11 @@ printifhwfeatures(const char *unused, int show)
 	}
 	bzero(&ifrdat, sizeof(ifrdat));
 	ifr.ifr_data = (caddr_t)&ifrdat;
-	if (ioctl(s, SIOCGIFDATA, (caddr_t)&ifr) == -1)
+	if (ioctl(sock, SIOCGIFDATA, (caddr_t)&ifr) == -1)
 		err(1, "SIOCGIFDATA");
 	printb("\thwfeatures", (u_int)ifrdat.ifi_capabilities, HWFEATURESBITS);
 
-	if (ioctl(s, SIOCGIFHARDMTU, (caddr_t)&ifr) != -1) {
+	if (ioctl(sock, SIOCGIFHARDMTU, (caddr_t)&ifr) != -1) {
 		if (ifr.ifr_hardmtu)
 			printf(" hardmtu %u", ifr.ifr_hardmtu);
 	}
@@ -1875,7 +1875,7 @@ setrdomain(const char *id, int param)
 
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 	ifr.ifr_rdomainid = rdomainid;
-	if (ioctl(s, SIOCSIFRDOMAIN, (caddr_t)&ifr) == -1)
+	if (ioctl(sock, SIOCSIFRDOMAIN, (caddr_t)&ifr) == -1)
 		warn("SIOCSIFRDOMAIN");
 }
 
@@ -1884,7 +1884,7 @@ unsetrdomain(const char *ignored, int alsoignored)
 {
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 	ifr.ifr_rdomainid = 0;
-	if (ioctl(s, SIOCSIFRDOMAIN, (caddr_t)&ifr) == -1)
+	if (ioctl(sock, SIOCSIFRDOMAIN, (caddr_t)&ifr) == -1)
 		warn("SIOCSIFRDOMAIN");
 }
 #endif
