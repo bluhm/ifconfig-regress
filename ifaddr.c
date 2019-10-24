@@ -129,7 +129,7 @@ struct	in6_ifreq	in6_ridreq;
 struct	in6_aliasreq	in6_addreq;
 struct	sockaddr_in	netmask;
 
-char	name[IFNAMSIZ];
+char	ifname[IFNAMSIZ];
 int	flags, xflags, setaddr, setmask, setipdst, setbroad, doalias;
 u_long	metric, mtu;
 int	rdomainid;
@@ -244,7 +244,7 @@ unsigned long get_ts_map(int, int, int);
 void	in_status(int);
 void	in_getaddr(const char *, int);
 void	in_getprefix(const char *, int);
-void	in6_fillscopeid(struct sockaddr_in6 *sin6);
+void	in6_fillscopeid(struct sockaddr_in6 *);
 void	in6_alias(struct in6_ifreq *);
 void	in6_status(int);
 void	in6_getaddr(const char *, int);
@@ -317,10 +317,10 @@ main(int argc, char *argv[])
 			argc--, argv++;
 			if (argc < 1)
 				usage();
-			if (strlcpy(name, *argv, sizeof(name)) >= IFNAMSIZ)
+			if (strlcpy(ifname, *argv, sizeof(ifname)) >= IFNAMSIZ)
 				errx(1, "interface name '%s' too long", *argv);
 		}
-	} else if (strlcpy(name, *argv, sizeof(name)) >= IFNAMSIZ)
+	} else if (strlcpy(ifname, *argv, sizeof(ifname)) >= IFNAMSIZ)
 		errx(1, "interface name '%s' too long", *argv);
 	argc--, argv++;
 
@@ -344,7 +344,7 @@ main(int argc, char *argv[])
 		rafp = afp;
 		af = ifr.ifr_addr.sa_family = rafp->af_af;
 	}
-	(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	(void) strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 
 	/* initialization */
 	in6_addreq.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
@@ -356,7 +356,7 @@ main(int argc, char *argv[])
 	}
 
 	if (argc != 0 && af == AF_INET6)
-		addaf(name, AF_INET6);
+		addaf(ifname, AF_INET6);
 
 	while (argc > 0) {
 		const struct cmd *p;
@@ -434,7 +434,7 @@ nextarg:
 	}
 
 	if (doalias == 0 || (newaddr && clearaddr)) {
-		(void) strlcpy(rafp->af_ridreq, name, sizeof(ifr.ifr_name));
+		(void) strlcpy(rafp->af_ridreq, ifname, sizeof(ifr.ifr_name));
 		/* IPv4 only, inet6 does not have such ioctls */
 		if (setaddr) {
 			memcpy(&ridreq.ifr_addr, &in_addreq.ifra_addr,
@@ -463,7 +463,7 @@ nextarg:
 		return (0);
 	}
 	if (clearaddr) {
-		(void) strlcpy(rafp->af_ridreq, name, sizeof(ifr.ifr_name));
+		(void) strlcpy(rafp->af_ridreq, ifname, sizeof(ifr.ifr_name));
 		if (ioctl(sock, rafp->af_difaddr, rafp->af_ridreq) == -1) {
 			if (errno == EADDRNOTAVAIL && (doalias >= 0)) {
 				/* means no previous address for interface */
@@ -472,7 +472,7 @@ nextarg:
 		}
 	}
 	if (newaddr) {
-		(void) strlcpy(rafp->af_addreq, name, sizeof(ifr.ifr_name));
+		(void) strlcpy(rafp->af_addreq, ifname, sizeof(ifr.ifr_name));
 		if (ioctl(sock, rafp->af_aifaddr, rafp->af_addreq) == -1)
 			err(1, "SIOCAIFADDR");
 	}
@@ -502,7 +502,7 @@ getinfo(struct ifreq *ifr, int create)
 	getsock(af);
 	if (sock == -1)
 		err(1, "socket");
-	if (!isdigit((unsigned char)name[strlen(name) - 1]))
+	if (!isdigit((unsigned char)ifname[strlen(ifname) - 1]))
 		return (-1);	/* ignore groups here */
 	if (ioctl(sock, SIOCGIFFLAGS, (caddr_t)ifr) == -1) {
 		int oerrno = errno;
@@ -578,7 +578,7 @@ printgroup(char *groupname, int ifaliases)
 }
 
 void
-printif(char *ifname, int ifaliases)
+printif(char *name, int ifaliases)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct if_data *ifdata;
@@ -589,9 +589,9 @@ printif(char *ifname, int ifaliases)
 	size_t nlen = 0;
 
 	if (aflag)
-		ifname = NULL;
-	if (ifname) {
-		if ((oname = strdup(ifname)) == NULL)
+		name = NULL;
+	if (name) {
+		if ((oname = strdup(name)) == NULL)
 			err(1, "strdup");
 		nlen = strlen(oname);
 		/* is it a group? */
@@ -631,7 +631,7 @@ printif(char *ifname, int ifaliases)
 			    MINIMUM(sizeof(ifr.ifr_addr), ifa->ifa_addr->sa_len));
 			ifrp = &ifr;
 		}
-		strlcpy(name, ifa->ifa_name, sizeof(name));
+		strlcpy(ifname, ifa->ifa_name, sizeof(ifname));
 		strlcpy(ifrp->ifr_name, ifa->ifa_name, sizeof(ifrp->ifr_name));
 
 		if (ifa->ifa_addr->sa_family == AF_LINK) {
@@ -671,7 +671,7 @@ printif(char *ifname, int ifaliases)
 	freeifaddrs(ifap);
 	free(oname);
 	if (count == 0) {
-		fprintf(stderr, "%s: no such interface\n", name);
+		fprintf(stderr, "%s: no such interface\n", ifname);
 		exit(1);
 	}
 }
@@ -767,7 +767,7 @@ addaf(const char *vname, int value)
 {
 	struct if_afreq	ifar;
 
-	strlcpy(ifar.ifar_name, name, sizeof(ifar.ifar_name));
+	strlcpy(ifar.ifar_name, ifname, sizeof(ifar.ifar_name));
 	ifar.ifar_af = value;
 	if (ioctl(sock, SIOCIFAFATTACH, (caddr_t)&ifar) == -1)
 		warn("SIOCIFAFATTACH");
@@ -778,7 +778,7 @@ removeaf(const char *vname, int value)
 {
 	struct if_afreq	ifar;
 
-	strlcpy(ifar.ifar_name, name, sizeof(ifar.ifar_name));
+	strlcpy(ifar.ifar_name, ifname, sizeof(ifar.ifar_name));
 	ifar.ifar_af = value;
 	if (ioctl(sock, SIOCIFAFDETACH, (caddr_t)&ifar) == -1)
 		warn("SIOCIFAFDETACH");
@@ -843,7 +843,7 @@ setia6eui64(const char *cmd, int val)
 	if (afp->af_af != AF_INET6)
 		errx(1, "%s not allowed for this address family", cmd);
 
-	addaf(name, AF_INET6);
+	addaf(ifname, AF_INET6);
 
 	in6 = (struct in6_addr *)&in6_addreq.ifra_addr.sin6_addr;
 	if (memcmp(&in6addr_any.s6_addr[8], &in6->s6_addr[8], 8) != 0)
@@ -852,7 +852,7 @@ setia6eui64(const char *cmd, int val)
 		err(1, "getifaddrs");
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (ifa->ifa_addr->sa_family == AF_INET6 &&
-		    strcmp(ifa->ifa_name, name) == 0) {
+		    strcmp(ifa->ifa_name, ifname) == 0) {
 			sin6 = (const struct sockaddr_in6 *)ifa->ifa_addr;
 			if (IN6_IS_ADDR_LINKLOCAL(&sin6->sin6_addr)) {
 				lladdr = &sin6->sin6_addr;
@@ -1030,7 +1030,7 @@ phys_status(int force)
 	struct if_laddrreq *r = &req;
 
 	memset(&req, 0, sizeof(req));
-	(void) strlcpy(req.iflr_name, name, sizeof(req.iflr_name));
+	(void) strlcpy(req.iflr_name, ifname, sizeof(req.iflr_name));
 	if (ioctl(sock, SIOCGLIFPHYADDR, (caddr_t)&req) == -1) {
 		if (errno != EADDRNOTAVAIL)
 			return;
@@ -1103,7 +1103,7 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 	char sep;
 
 
-	printf("%s: ", name);
+	printf("%s: ", ifname);
 	printb("flags", flags | (xflags << 16), IFFBITS);
 	if (rdomainid)
 		printf(" rdomain %d", rdomainid);
@@ -1120,7 +1120,7 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 	sep = '\t';
 #ifndef SMALL
 	(void) memset(&ifrdesc, 0, sizeof(ifrdesc));
-	(void) strlcpy(ifrdesc.ifr_name, name, sizeof(ifrdesc.ifr_name));
+	(void) strlcpy(ifrdesc.ifr_name, ifname, sizeof(ifrdesc.ifr_name));
 	ifrdesc.ifr_data = (caddr_t)&ifdescr;
 	if (ioctl(sock, SIOCGIFDESCR, &ifrdesc) == 0 &&
 	    strlen(ifrdesc.ifr_data))
@@ -1138,7 +1138,7 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 	printf("%cllprio %d\n", sep, llprio);
 
 	(void) memset(&ifmr, 0, sizeof(ifmr));
-	(void) strlcpy(ifmr.ifm_name, name, sizeof(ifmr.ifm_name));
+	(void) strlcpy(ifmr.ifm_name, ifname, sizeof(ifmr.ifm_name));
 
 	if (ioctl(sock, SIOCGIFMEDIA, (caddr_t)&ifmr) == -1) {
 		/*
@@ -1151,7 +1151,7 @@ status(int link, struct sockaddr_dl *sdl, int ls)
 	}
 
 	if (ifmr.ifm_count == 0) {
-		warnx("%s: no media types?", name);
+		warnx("%s: no media types?", ifname);
 		goto proto_status;
 	}
 
@@ -1225,7 +1225,7 @@ in_status(int force)
 			return;
 		err(1, "socket");
 	}
-	(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	(void) strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	sin = (struct sockaddr_in *)&ifr.ifr_addr;
 
 	/*
@@ -1237,7 +1237,7 @@ in_status(int force)
 	memcpy(&sin2, &ifr.ifr_addr, sizeof(sin2));
 
 	printf("\tinet %s", inet_ntoa(sin->sin_addr));
-	(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	(void) strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	if (ioctl(sock, SIOCGIFNETMASK, (caddr_t)&ifr) == -1) {
 		if (errno != EADDRNOTAVAIL)
 			warn("SIOCGIFNETMASK");
@@ -1253,7 +1253,7 @@ in_status(int force)
 			else
 			    warn("SIOCGIFDSTADDR");
 		}
-		(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+		(void) strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 		sin = (struct sockaddr_in *)&ifr.ifr_dstaddr;
 		printf(" --> %s", inet_ntoa(sin->sin_addr));
 	}
@@ -1266,7 +1266,7 @@ in_status(int force)
 			else
 			    warn("SIOCGIFBRDADDR");
 		}
-		(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+		(void) strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 		sin = (struct sockaddr_in *)&ifr.ifr_addr;
 		if (sin->sin_addr.s_addr != 0)
 			printf(" broadcast %s", inet_ntoa(sin->sin_addr));
@@ -1325,7 +1325,7 @@ in6_alias(struct in6_ifreq *creq)
 
 	if (flags & IFF_POINTOPOINT) {
 		(void) memset(&ifr6, 0, sizeof(ifr6));
-		(void) strlcpy(ifr6.ifr_name, name, sizeof(ifr6.ifr_name));
+		(void) strlcpy(ifr6.ifr_name, ifname, sizeof(ifr6.ifr_name));
 		ifr6.ifr_addr = creq->ifr_addr;
 		if (ioctl(sock, SIOCGIFDSTADDR_IN6, (caddr_t)&ifr6) == -1) {
 			if (errno != EADDRNOTAVAIL)
@@ -1343,7 +1343,7 @@ in6_alias(struct in6_ifreq *creq)
 	}
 
 	(void) memset(&ifr6, 0, sizeof(ifr6));
-	(void) strlcpy(ifr6.ifr_name, name, sizeof(ifr6.ifr_name));
+	(void) strlcpy(ifr6.ifr_name, ifname, sizeof(ifr6.ifr_name));
 	ifr6.ifr_addr = creq->ifr_addr;
 	if (ioctl(sock, SIOCGIFNETMASK_IN6, (caddr_t)&ifr6) == -1) {
 		if (errno != EADDRNOTAVAIL)
@@ -1355,7 +1355,7 @@ in6_alias(struct in6_ifreq *creq)
 	}
 
 	(void) memset(&ifr6, 0, sizeof(ifr6));
-	(void) strlcpy(ifr6.ifr_name, name, sizeof(ifr6.ifr_name));
+	(void) strlcpy(ifr6.ifr_name, ifname, sizeof(ifr6.ifr_name));
 	ifr6.ifr_addr = creq->ifr_addr;
 	if (ioctl(sock, SIOCGIFAFLAG_IN6, (caddr_t)&ifr6) == -1) {
 		if (errno != EADDRNOTAVAIL)
@@ -1384,7 +1384,7 @@ in6_alias(struct in6_ifreq *creq)
 		struct in6_addrlifetime *lifetime;
 
 		(void) memset(&ifr6, 0, sizeof(ifr6));
-		(void) strlcpy(ifr6.ifr_name, name, sizeof(ifr6.ifr_name));
+		(void) strlcpy(ifr6.ifr_name, ifname, sizeof(ifr6.ifr_name));
 		ifr6.ifr_addr = creq->ifr_addr;
 		lifetime = &ifr6.ifr_ifru.ifru_lifetime;
 		if (ioctl(sock, SIOCGIFALIFETIME_IN6, (caddr_t)&ifr6) == -1) {
@@ -1455,7 +1455,7 @@ settunnel(const char *src, const char *dst)
 		    "source and destination address families do not match");
 
 	memset(&req, 0, sizeof(req));
-	(void) strlcpy(req.iflr_name, name, sizeof(req.iflr_name));
+	(void) strlcpy(req.iflr_name, ifname, sizeof(req.iflr_name));
 	memcpy(&req.addr, srcres->ai_addr, srcres->ai_addrlen);
 	memcpy(&req.dstaddr, dstres->ai_addr, dstres->ai_addrlen);
 	if (ioctl(sock, SIOCSLIFPHYADDR, &req) == -1)
@@ -1484,9 +1484,9 @@ settunneladdr(const char *addr, int ignored)
 		errx(1, "tunneladdr %s: %s", addr, gai_strerror(rv));
 
 	memset(&req, 0, sizeof(req));
-	len = strlcpy(req.iflr_name, name, sizeof(req.iflr_name));
+	len = strlcpy(req.iflr_name, ifname, sizeof(req.iflr_name));
 	if (len >= sizeof(req.iflr_name))
-		errx(1, "%s: Interface name too long", name);
+		errx(1, "%s: Interface name too long", ifname);
 
 	memcpy(&req.addr, res->ai_addr, res->ai_addrlen);
 
@@ -1517,7 +1517,7 @@ settunnelinst(const char *id, int param)
 	if (errmsg)
 		errx(1, "rdomain %s: %s", id, errmsg);
 
-	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	ifr.ifr_rdomainid = rdomainid;
 	if (ioctl(sock, SIOCSLIFPHYRTABLE, (caddr_t)&ifr) == -1)
 		warn("SIOCSLIFPHYRTABLE");
@@ -1526,7 +1526,7 @@ settunnelinst(const char *id, int param)
 void
 unsettunnelinst(const char *ignored, int alsoignored)
 {
-	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	ifr.ifr_rdomainid = 0;
 	if (ioctl(sock, SIOCSLIFPHYRTABLE, (caddr_t)&ifr) == -1)
 		warn("SIOCSLIFPHYRTABLE");
@@ -1546,7 +1546,7 @@ settunnelttl(const char *id, int param)
 			errx(1, "tunnelttl %s: %s", id, errmsg);
 	}
 
-	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	ifr.ifr_ttl = ttl;
 	if (ioctl(sock, SIOCSLIFPHYTTL, (caddr_t)&ifr) == -1)
 		warn("SIOCSLIFPHYTTL");
@@ -1873,7 +1873,7 @@ setrdomain(const char *id, int param)
 	if (errmsg)
 		errx(1, "rdomain %s: %s", id, errmsg);
 
-	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	ifr.ifr_rdomainid = rdomainid;
 	if (ioctl(sock, SIOCSIFRDOMAIN, (caddr_t)&ifr) == -1)
 		warn("SIOCSIFRDOMAIN");
@@ -1882,7 +1882,7 @@ setrdomain(const char *id, int param)
 void
 unsetrdomain(const char *ignored, int alsoignored)
 {
-	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	ifr.ifr_rdomainid = 0;
 	if (ioctl(sock, SIOCSIFRDOMAIN, (caddr_t)&ifr) == -1)
 		warn("SIOCSIFRDOMAIN");
