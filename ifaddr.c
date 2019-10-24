@@ -1236,8 +1236,15 @@ in_status(int force)
 	 */
 	memcpy(&sin2, &ifr.ifr_addr, sizeof(sin2));
 
-	printf("\tinet %s", inet_ntoa(sin->sin_addr));
 	(void) strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+	if (ioctl(sock, SIOCGIFADDR, (caddr_t)&ifr) == -1) {
+		warn("SIOCGIFADDR");
+		memset(&ifr.ifr_addr, 0, sizeof(ifr.ifr_addr));
+	}
+	(void) strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+	sin = (struct sockaddr_in *)&ifr.ifr_addr;
+	printf("\tinet %s", inet_ntoa(sin->sin_addr));
+	memcpy(&ifr.ifr_addr, &sin2, sizeof(sin2));
 	if (ioctl(sock, SIOCGIFNETMASK, (caddr_t)&ifr) == -1) {
 		if (errno != EADDRNOTAVAIL)
 			warn("SIOCGIFNETMASK");

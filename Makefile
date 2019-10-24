@@ -266,6 +266,13 @@ run-ether-ifaddr-set:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} ' ifconfig.out
 
+REGRESS_TARGETS +=	run-ether-ifaddr-get
+run-ether-ifaddr-get:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR}
+	${KTRACE} ./ifaddr ${ETHER_IF} >ifconfig.out
+	grep 'inet ${ETHER_ADDR} ' ifconfig.out
+
 REGRESS_TARGETS +=	run-ether-ifaddr-netmask
 run-ether-ifaddr-netmask:
 	@echo '======== $@ ========'
