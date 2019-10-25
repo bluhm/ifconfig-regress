@@ -397,7 +397,7 @@ run-ether-inet6-netmask:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet6 ${ETHER_ADDR6} prefixlen 80 ' ifconfig.out
 
-# currently inet6 netmask is silently ignored
+# XXX currently inet6 netmask is silently ignored
 REGRESS_EXPECTED_FAILURES +=	run-ether-inet6-netmask
 
 REGRESS_TARGETS +=	run-ether-inet6-len
