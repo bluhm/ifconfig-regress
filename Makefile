@@ -442,6 +442,43 @@ run-ether-inet6-host:
 	grep 'inet6 ${ETHER_NET6}1 prefixlen 128 ' ifconfig.out
 	grep -c 'inet6 ${ETHER_NET6}' ifconfig.out | grep -q 1
 
+REGRESS_TARGETS +=	run-ether-inet6-alias
+run-ether-inet6-alias:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}1
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}2 alias
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet6 ${ETHER_NET6}1 ' ifconfig.out
+	grep 'inet6 ${ETHER_NET6}2 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-inet6-delete
+run-ether-inet6-delete:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}1
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}1 delete
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet6 ${ETHER_NET6}' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-inet6-delete-first
+run-ether-inet6-delete-first:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}1
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}2 alias
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}1 delete
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet6 ${ETHER_NET6}1 ' ifconfig.out
+	grep 'inet6 ${ETHER_NET6}2 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-inet6-delete-second
+run-ether-inet6-delete-second:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}1
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}2 alias
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_NET6}2 delete
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	grep 'inet6 ${ETHER_NET6}1 ' ifconfig.out
+	! grep 'inet6 ${ETHER_NET6}2 ' ifconfig.out
+
 ### setup cleanup
 
 REGRESS_ROOT_TARGETS =	${REGRESS_TARGETS}
