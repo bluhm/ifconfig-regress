@@ -24,7 +24,7 @@ ETHER_ADDR ?=	10.188.254.74
 ETHER_ADDR6 ?=	fdd7:e83e:66bc:254::74
 ETHER_NET =	${ETHER_ADDR:C/\.[0-9][0-9]*$//}
 ETHER_NET6 =	${ETHER_ADDR6:C/::[0-9a-f:]*$/::/}
-PPP_IF ?=	ppp99
+PPP_IF ?=	tun99
 PPP_ADDR ?=	10.188.253.74
 PPP_ADDR6 ?=	fdd7:e83e:66bc:253::74
 PPP_DEST ?=	10.188.253.75
@@ -371,7 +371,7 @@ run-ether-ifaddr-duplicate:
 	grep 'inet ${ETHER_NET}.2 netmask 0xffffff00 ' ifconfig.out
 	grep -c 'inet ' ifconfig.out | grep -q 2
 
-### inet6
+### ether-inet6
 
 REGRESS_TARGETS +=	run-ether-inet6-eui64
 run-ether-inet6-eui64:
@@ -478,6 +478,56 @@ run-ether-inet6-delete-second:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet6 ${ETHER_NET6}1 ' ifconfig.out
 	! grep 'inet6 ${ETHER_NET6}2 ' ifconfig.out
+
+### ppp-inet6
+
+REGRESS_TARGETS +=	run-ppp-inet6-eui64
+run-ppp-inet6-eui64:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} inet6 eui64
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet6 fe80::[0-9a-f:]*ff:fe[0-9a-f:]*%${PPP_IF} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-inet6-addr
+run-ppp-inet6-addr:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} inet6 ${PPP_ADDR6}
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet6 ${PPP_ADDR6} ' ifconfig.out
+	# setting an address creates eui64 automatically
+	grep 'inet6 fe80::[0-9a-f:]*ff:fe[0-9a-f:]*%${PPP_IF} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-inet6-len
+run-ppp-inet6-len:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} inet6 ${PPP_ADDR6}/80
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet6 ${PPP_ADDR6} .* prefixlen 80 ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-inet6-destination
+run-ppp-inet6-destination:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} inet6 ${PPP_ADDR6} ${PPP_DEST6}
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet6 ${PPP_ADDR6} -> ${PPP_DEST6} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-inet6-noreplace
+run-ppp-inet6-noreplace:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} inet6 ${PPP_NET6}1 ${PPP_DEST6}
+	${IFCONFIG} ${PPP_IF} inet6 ${PPP_NET6}2 ${PPP_DEST6}
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet6 ${PPP_NET6}1 -> ${PPP_DEST6} ' ifconfig.out
+	grep 'inet6 ${PPP_NET6}2 -> ${PPP_DEST6} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ppp-inet6-alias
+run-ppp-inet6-alias:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${PPP_IF} inet6 ${PPP_NET6}1 ${PPP_DEST6}
+	${IFCONFIG} ${PPP_IF} inet6 ${PPP_NET6}2 ${PPP_DEST6} alias
+	/sbin/ifconfig ${PPP_IF} >ifconfig.out
+	grep 'inet6 ${PPP_NET6}1 -> ${PPP_DEST6} ' ifconfig.out
+	grep 'inet6 ${PPP_NET6}2 -> ${PPP_DEST6} ' ifconfig.out
 
 ### setup cleanup
 
