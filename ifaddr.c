@@ -1639,9 +1639,6 @@ in_getaddr(const char *s, int which)
 		else
 			errx(1, "%s: bad value", s);
 	}
-	if (which == MASK && (ntohl(sin->sin_addr.s_addr) &
-	    (~ntohl(sin->sin_addr.s_addr) >> 1)))
-		errx(1, "%s: non-contiguous mask", s);
 }
 
 /* ARGSUSED */
