@@ -59,6 +59,15 @@ run-ether-netmask:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
 
+REGRESS_TARGETS +=	run-ether-contiguous-netmask
+run-ether-contiguous-netmask:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.0
+	${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR} delete
+	! ${IFCONFIG} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.64
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet ${ETHER_ADDR} ' ifconfig.out
+
 REGRESS_TARGETS +=	run-ether-len
 run-ether-len:
 	@echo '======== $@ ========'
@@ -299,6 +308,15 @@ run-ether-ifaddr-netmask:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet ${ETHER_ADDR} netmask 0xffffff00 ' ifconfig.out
 
+REGRESS_TARGETS +=	run-ether-ifaddr-contiguous-netmask
+run-ether-ifaddr-contiguous-netmask:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.0
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} delete
+	! ${IFADDR} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.64
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet ${ETHER_ADDR} ' ifconfig.out
+
 REGRESS_TARGETS +=	run-ether-ifaddr-prefixlen
 run-ether-ifaddr-prefixlen:
 	@echo '======== $@ ========'
@@ -406,8 +424,25 @@ run-ether-inet6-netmask:
 	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
 	grep 'inet6 ${ETHER_ADDR6} prefixlen 80 ' ifconfig.out
 
-# XXX currently inet6 netmask is silently ignored
-REGRESS_EXPECTED_FAILURES +=	run-ether-inet6-netmask
+REGRESS_TARGETS +=	run-ether-inet6-contiguous-netmask
+run-ether-inet6-contiguous-netmask:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_ADDR6}\
+	    netmask ffff:ffff:ffff:ffff:ffff::
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_ADDR6} delete
+	! ${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_ADDR6}\
+	    netmask ffff:ffff:ffff:ffff:ffff:4000::
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet6 ${ETHER_ADDR6} ' ifconfig.out
+
+REGRESS_TARGETS +=	run-ether-inet6-contiguous-gap
+run-ether-inet6-contiguous-gap:
+	@echo '======== $@ ========'
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_ADDR6} netmask ffff::
+	${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_ADDR6} delete
+	! ${IFCONFIG} ${ETHER_IF} inet6 ${ETHER_ADDR6} netmask ffff::ff00:8
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet6 ${ETHER_ADDR6} ' ifconfig.out
 
 REGRESS_TARGETS +=	run-ether-inet6-len
 run-ether-inet6-len:
