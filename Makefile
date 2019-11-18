@@ -329,6 +329,15 @@ run-ether-ifaddr-alias:
 	grep 'inet ${ETHER_NET}.1 ' ifconfig.out
 	grep 'inet ${ETHER_NET}.2 ' ifconfig.out
 
+REGRESS_TARGETS +=	run-ether-ifaddr-contiguous-netmask
+run-ether-ifaddr-contiguous-netmask:
+	@echo '======== $@ ========'
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.0
+	${IFADDR} ${ETHER_IF} ${ETHER_ADDR} delete
+	! ${IFADDR} ${ETHER_IF} ${ETHER_ADDR} netmask 255.255.255.64
+	/sbin/ifconfig ${ETHER_IF} >ifconfig.out
+	! grep 'inet ${ETHER_ADDR} ' ifconfig.out
+
 REGRESS_TARGETS +=	run-ether-ifaddr-change-netmask
 run-ether-ifaddr-change-netmask:
 	@echo '======== $@ ========'
