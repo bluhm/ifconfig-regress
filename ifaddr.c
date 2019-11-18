@@ -717,6 +717,7 @@ setifnetmask(const char *addr, int ignored)
 {
 	setmask++;
 	afp->af_getaddr(addr, MASK);
+	explicit_prefix = 1;
 }
 
 /* ARGSUSED */
