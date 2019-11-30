@@ -111,6 +111,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <resolv.h>
 #include <util.h>
 #include <ifaddrs.h>
 
@@ -324,11 +325,11 @@ main(int argc, char *argv[])
 		errx(1, "interface name '%s' too long", *argv);
 	argc--, argv++;
 
-	if (unveil("/etc/resolv.conf", "r") == -1)
+	if (unveil(_PATH_RESCONF, "r") == -1)
 		err(1, "unveil");
-	if (unveil("/etc/hosts", "r") == -1)
+	if (unveil(_PATH_HOSTS, "r") == -1)
 		err(1, "unveil");
-	if (unveil("/etc/services", "r") == -1)
+	if (unveil(_PATH_SERVICES, "r") == -1)
 		err(1, "unveil");
 	if (unveil(NULL, NULL) == -1)
 		err(1, "unveil");
