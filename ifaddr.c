@@ -1,4 +1,4 @@
-/*	$OpenBSD: ifaddr.c,v 1.1 2019/10/24 22:55:07 bluhm Exp $	*/
+/*	$OpenBSD: ifaddr.c,v 1.2 2019/11/30 05:51:20 bluhm Exp $	*/
 
 /*
  * This file has been copied from ifconfig and adapted to test
